@@ -11,8 +11,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -28,11 +26,11 @@ jobs:
             numpy \
             scipy \
             pillow \
-            opencv-python-headless \
-            transformers==4.57.1 \
-            einops \
-            hydra-core
-          python -m pip install --no-deps -e third_party/alpamayo1.5
+            opencv-python-headless
+          # The simulator-free tests exercise the version dispatcher, adapters,
+          # shared helpers, dataset loading, and the launcher parser. Adapters
+          # import their Alpamayo model package lazily inside load_model, so no
+          # model submodule needs installing here.
 
       - name: Run lightweight tests
         env:

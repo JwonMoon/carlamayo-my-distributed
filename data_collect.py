@@ -7,6 +7,7 @@ import carla
 import cv2
 import numpy as np
 
+from module.adapters._rigs import SEVEN_CAMERA_RIG
 from module.data_collection import (
     collect_synchronous_sensor_frame,
     frame_file_path,
@@ -27,17 +28,10 @@ WARMUP_SECONDS = 2.0  # Drive briefly before recording sensor data.
 NUM_NPC_VEHICLES = 20
 NUM_NPC_WALKERS = 30
 
-# Sensor poses in the ego vehicle frame.
-SENSOR_CONFIGS = {
-    "cam_front_wide": {"x": 1.5, "y": 0.0, "z": 2.4, "pitch": 0.0, "yaw": 0.0, "fov": 120},
-    "cam_front_tele": {"x": 1.5, "y": 0.0, "z": 2.4, "pitch": 0.0, "yaw": 0.0, "fov": 30},
-    "cam_front_left": {"x": 1.0, "y": -0.5, "z": 2.4, "pitch": 0.0, "yaw": -60.0, "fov": 120},
-    "cam_front_right": {"x": 1.0, "y": 0.5, "z": 2.4, "pitch": 0.0, "yaw": 60.0, "fov": 120},
-    "cam_rear_left": {"x": -0.5, "y": -0.5, "z": 2.4, "pitch": 0.0, "yaw": -120.0, "fov": 120},
-    "cam_rear_right": {"x": -0.5, "y": 0.5, "z": 2.4, "pitch": 0.0, "yaw": 120.0, "fov": 120},
-    "cam_rear_wide": {"x": -1.5, "y": 0.0, "z": 2.4, "pitch": 0.0, "yaw": 180.0, "fov": 120},
-    "cam_rear_tele": {"x": -1.5, "y": 0.0, "z": 2.4, "pitch": 0.0, "yaw": 180.0, "fov": 30},
-}
+# Record the Alpamayo 2 seven-camera source ring as the superset: recordings made
+# with it replay for any Alpamayo version, since the four-camera 1 / 1.5 rig is a
+# subset selected by folder name at open-loop replay time.
+SENSOR_CONFIGS = dict(SEVEN_CAMERA_RIG)
 
 
 def sensor_callback(sensor_data, sensor_queue, sensor_name):

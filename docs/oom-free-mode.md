@@ -45,16 +45,16 @@ plan is computed at load time (see below).
 Open-loop (no CARLA needed):
 
 ```bash
-python carlamayo_open_loop.py --oom-free
+python carlamayo.py --loop open --version 1.5 --oom-free
 ```
 
 Closed-loop (keep CARLA running the whole time):
 
 ```bash
 # CARLA stays up; only Alpamayo is offloaded.
-python carlamayo_closed_loop.py --mode normal --oom-free
+python carlamayo.py --loop closed --version 1.5 --mode normal --oom-free
 # Recommended for closed-loop: run inference off the tick loop.
-python carlamayo_closed_loop.py --mode normal --oom-free --async
+python carlamayo.py --loop closed --version 1.5 --mode normal --oom-free --async
 ```
 
 In closed-loop, the model is loaded **after** CARLA has spawned its map, NPCs and

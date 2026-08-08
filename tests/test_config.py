@@ -4,12 +4,20 @@ from module import config as cfg
 
 
 def test_runtime_dimensions_match_alpamayo_camera_history_contract():
-    assert cfg.NUM_CAMERAS == 4
+    # The camera count is version-specific and now lives on the adapter, not here.
     assert cfg.NUM_FRAMES == 4
     assert cfg.NUM_HISTORY == 16
     assert cfg.IMG_CHANNELS == 3
     assert cfg.IMG_WIDTH > 0
     assert cfg.IMG_HEIGHT > 0
+
+
+def test_per_loop_output_video_names_are_bare_mp4_filenames():
+    from pathlib import Path as _Path
+
+    for name in (cfg.OUTPUT_VIDEO, cfg.OPEN_LOOP_OUTPUT_VIDEO, cfg.LIVE_OPEN_LOOP_OUTPUT_VIDEO):
+        assert name.endswith(".mp4")
+        assert _Path(name).name == name
 
 
 def test_output_paths_and_map_defaults_are_public_run_defaults():

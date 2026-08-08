@@ -1,6 +1,9 @@
 # Data Collection and Inference Workflows
 
-This guide covers CARLA data collection, open-loop inference, and closed-loop inference.
+This guide covers CARLA data collection and the three loop modes (open, closed,
+live-open) across Alpamayo versions. Every command selects the model with
+`--version {1,1.5,2}` (required) and, on the unified launcher, the loop with
+`--loop {open,closed,live-open}`.
 
 ## 1. Data Collection
 
@@ -8,7 +11,7 @@ Start CARLA first:
 
 ```bash
 cd ~/carla
-./CarlaUE4.sh -RenderOffScreen
+./CarlaUE4.sh -RenderOffScreen -quality-level=Epic
 ```
 
 > Do not add `-quality-level=Low`; low-quality rendering can degrade camera inputs.
@@ -23,118 +26,102 @@ python data_collect.py
 Outputs:
 
 - `carla_data/trajectory.json`
-- `carla_data/cam_*/<frame>.jpg`
+- `carla_data/camera_*/<frame>.jpg`
 - `carla_data/lidar_top/<frame>.ply`
 
-`data_collect.py` records only complete synchronous frames. Sensor messages are matched to the exact frame returned by `world.tick()` so camera/LiDAR files and trajectory poses remain aligned under slower Epic rendering or after map reloads.
+`data_collect.py` records the seven-camera Alpamayo 2 source ring as a superset, so
+one recording replays for any version (the four-camera Alpamayo 1 / 1.5 rig is a
+subset selected by folder name at replay time). It records only complete synchronous
+frames, matched to the exact frame returned by `world.tick()`.
 
 ## 2. Open-Loop Inference
 
-Run open-loop inference on collected CARLA data:
+Replay recorded data through the model (no driving):
 
 ```bash
-source a1_5_venv/bin/activate
-python carlamayo_open_loop.py
+source a2_venv/bin/activate
+python carlamayo.py --loop open --version 2
+# equivalently: python carlamayo_open_loop.py --version 2
 ```
 
-Optional 4-bit quantized mode:
+Options: `--quantization` (4-bit), `--oom-free` (Alpamayo 1.5 only; see
+[OOM-Free Mode](oom-free-mode.md)), `--data-root <dir>`, `--output-video <path>`.
 
-```bash
-python carlamayo_open_loop.py --quantization
-```
-
-Optional OOM-free mode (full-precision CPU↔GPU demand layering; see
-[OOM-Free Mode](oom-free-mode.md)):
-
-```bash
-python carlamayo_open_loop.py --oom-free
-```
-
-Output:
-
-- `carla_alpamayo_open_loop_result.mp4`
+Output: `carla_alpamayo_open_loop_result.mp4`
 
 ## 3. Closed-Loop Inference
 
-Before running, make sure CARLA is running:
+The model drives the ego vehicle via a PID follower. Start CARLA and set the
+PythonAPI path if needed:
 
 ```bash
 cd ~/carla
-./CarlaUE4.sh -RenderOffScreen
-```
-
-> Do not add `-quality-level=Low`; low-quality rendering can degrade camera inputs.
-
-Set the CARLA PythonAPI path if needed:
-
-```bash
+./CarlaUE4.sh -RenderOffScreen -quality-level=Epic
 export CARLA_ROOT=~/carla
 ```
 
-or edit `module/config.py`:
-
-```python
-CARLA_AGENT_ROOT = "~/carla"
-```
-
-The CARLA town/map is configured in `module/config.py` with `CARLA_MAP`; the
-closed-loop script does not expose a separate map CLI option.
-
-Run closed-loop inference from the repository root:
+The CARLA town/map is set in `module/config.py` (`CARLA_MAP`). Run:
 
 ```bash
-source a1_5_carla_venv/bin/activate
-python carlamayo_closed_loop.py
+source a2_carla_venv/bin/activate
+python carlamayo.py --loop closed --version 2
+# equivalently: python carlamayo_closed_loop.py --version 2
 ```
 
-Optional pygame UI modes:
+> Full-precision Alpamayo 2 needs ~70 GB VRAM. Run the CARLA server on a second
+> GPU (`-graphicsadapter=1`) when one GPU cannot host both.
+
+Optional pygame UI (starts paused so you can enter navigation/VQA text first):
 
 ```bash
-# Normal closed-loop trajectory control with camera UI.
-python carlamayo_closed_loop.py --mode normal --pygame-ui
+python carlamayo.py --loop closed --version 2 --mode normal --pygame-ui
 ```
 
-When `--pygame-ui` is enabled, the loop starts paused automatically so you can
-enter navigation or VQA text before the first active tick.
-
-Mode-specific usage guides:
+Mode-specific guides (navigation/VQA require `--version 1.5` or `2`):
 
 - [Navigation Mode](navigation-mode.md)
 - [VQA Mode](vqa-mode.md)
 
-Optional 4-bit quantized mode:
+Other options: `--quantization`, `--async` (non-blocking inference worker),
+`--oom-free` (Alpamayo 1.5). Example with OOM-free + async on a small GPU:
 
 ```bash
-python carlamayo_closed_loop.py --quantization
+python carlamayo.py --loop closed --version 1.5 --mode normal --oom-free --async
 ```
 
-Optional OOM-free mode — keep CARLA running and offload only Alpamayo via
-full-precision CPU↔GPU demand layering (see [OOM-Free Mode](oom-free-mode.md)).
-On a 16 GB GPU this fits where `--quantization` still OOMs against a live CARLA:
+Output: `carla_alpamayo_closed_loop_result.mp4`
+
+## 4. Live-Open-Loop Inference
+
+The CARLA Traffic Manager autopilot drives the ego vehicle while the model runs
+live and is observed open-loop: its predicted trajectory and Chain-of-Thought are
+overlaid against the autopilot's actual control, without the model touching the
+wheel. This is useful for comparing model predictions to a real driving policy in a
+live simulation.
 
 ```bash
-python carlamayo_closed_loop.py --mode normal --oom-free
-# off-tick inference is recommended for the slower offloaded model:
-python carlamayo_closed_loop.py --mode normal --oom-free --async
+cd ~/carla
+./CarlaUE4.sh -RenderOffScreen -quality-level=Epic
+export CARLA_ROOT=~/carla
+
+source a2_carla_venv/bin/activate
+# --async keeps the sim moving in real time while inference runs in the background:
+python carlamayo.py --loop live-open --version 2 --async
 ```
 
-Optional async inference mode:
+Options: `--async`, `--quantization`, `--oom-free` (1.5), `--navigation-text`
+(observation-only, for 1.5 / 2), `--output-video <path>`. The model never controls
+the vehicle in this mode.
+
+Output: `carla_alpamayo_live_open_loop_result.mp4`
+
+## 5. NVIDIA Original Test Scripts
+
+Each Alpamayo submodule ships its own smoke script and downloads its own gated
+weights (large; see each model card for the license before use):
 
 ```bash
-python carlamayo_closed_loop.py --async
+python third_party/alpamayo1/src/alpamayo_r1/test_inference.py         # Alpamayo 1 (R1)
+python third_party/alpamayo1.5/src/alpamayo1_5/test_inference.py       # Alpamayo 1.5
+python -m alpamayo2_super.inference_smoke --help                        # Alpamayo 2
 ```
-
-Output:
-
-- `carla_alpamayo_closed_loop_result.mp4`
-
-## 4. NVIDIA Original Test Script
-
-The original Alpamayo test script is provided by the submodule. It downloads example data and model weights. The model weights are large and may take time depending on network speed.
-
-```bash
-source a1_5_venv/bin/activate
-python third_party/alpamayo1.5/src/alpamayo1_5/test_inference.py
-```
-
-To generate more trajectories and reasoning traces, increase `num_traj_samples` in that submodule script. Review the model card/license terms before downloading or using the model weights.

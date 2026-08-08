@@ -7,16 +7,15 @@ This guide covers the required environments for CARLA data collection, Alpamayo 
 | Requirement | Specification |
 |-------------|---------------|
 | **Python** | 3.12.x for Alpamayo, 3.10.x for CARLA |
-| **GPU** | NVIDIA GPU with ≥24 GB VRAM recommended for Alpamayo; 4-bit quantization can reduce memory usage |
+| **GPU** | ≥24 GB VRAM for Alpamayo 1 / 1.5 (10B); ≥80 GB for Alpamayo 2 (34B); 4-bit `--quantization` or `--oom-free` (1.5) reduce VRAM |
 | **OS** | Linux tested |
 | **CARLA** | 0.9.16 |
+| **CUDA** | CUDA Toolkit 12.x with `nvcc`; `flash-attn` builds during install |
 | **ffmpeg** | Recommended for VS Code/browser-compatible H.264 MP4 video output |
-
-> GPUs with less than 24 GB VRAM may encounter CUDA out-of-memory errors. The 4-bit quantization option can run with lower VRAM, depending on the full workload.
 
 ## 0. Clone the Repository and Submodules
 
-Clone with the NVIDIA Alpamayo 1.5 submodule:
+Clone with all Alpamayo submodules (1 / 1.5 / 2 and OOM-free):
 
 ```bash
 git clone --recurse-submodules https://github.com/aveeslab/Carlamayo.git
@@ -29,7 +28,11 @@ If you already cloned the repository without submodules, initialize them from th
 git submodule update --init --recursive
 ```
 
-The Alpamayo source remains in `third_party/alpamayo1.5` as a submodule. This repository does not vendor a copied `src/alpamayo1_5` tree.
+Each Alpamayo release stays as a submodule and is not vendored:
+`third_party/alpamayo1` (R1, `--version 1`), `third_party/alpamayo1.5`
+(`--version 1.5`), `third_party/alpamayo2` (`--version 2`), and
+`third_party/oom-free-alpamayo` (used by `--oom-free`). You only need to install
+the package(s) for the version(s) you plan to run.
 
 ## 1. CARLA Environment Setup
 
@@ -81,26 +84,30 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ### 2.2 Set up the environment
 
-From the repository root:
+From the repository root. Install the package(s) for the version(s) you run;
+all three share the same pinned dependencies, so they can coexist in one env:
 
 ```bash
-uv venv a1_5_venv --python 3.12
-source a1_5_venv/bin/activate
+uv venv a_venv --python 3.12
+source a_venv/bin/activate
 uv sync --active
 python -m ensurepip --upgrade
-python -m pip install --no-deps -e third_party/alpamayo1.5
-python -m pip install --no-deps -e third_party/oom-free-alpamayo  # optional: enables --oom-free
+# Install one or more Alpamayo versions (--no-deps; shared torch/transformers pins):
+python -m pip install --no-deps -e third_party/alpamayo1      # --version 1 (R1)
+python -m pip install --no-deps -e third_party/alpamayo1.5    # --version 1.5
+python -m pip install --no-deps -e third_party/alpamayo2      # --version 2
+python -m pip install --no-deps -e third_party/oom-free-alpamayo  # optional: --oom-free (1.5)
 python -m pip install -r requirements-alpamayo.txt
 ```
 
 ### 2.3 Authenticate with Hugging Face
 
-The model requires access to gated resources. Request access first:
+The models require access to gated resources. Request access for the version(s)
+you use, then authenticate:
 
-- [PhysicalAI-Autonomous-Vehicles Dataset](https://huggingface.co/datasets/nvidia/PhysicalAI-Autonomous-Vehicles)
-- [Alpamayo Model Weights](https://huggingface.co/nvidia/Alpamayo-1.5-10B)
-
-Then authenticate:
+- [Alpamayo-R1-10B](https://huggingface.co/nvidia/Alpamayo-R1-10B)
+- [Alpamayo-1.5-10B](https://huggingface.co/nvidia/Alpamayo-1.5-10B)
+- [Alpamayo2-Super](https://huggingface.co/nvidia/Alpamayo2-Super)
 
 ```bash
 pip install huggingface_hub
@@ -111,17 +118,16 @@ Create or copy your token from: <https://huggingface.co/settings/tokens>
 
 ## 3. Combined Closed-Loop Environment
 
-Closed-loop execution needs Alpamayo and CARLA Python packages in the same environment.
-
-From the repository root, install `requirements-carla.txt`; it pins `carla==0.9.16` to match the CARLA server.
+Closed-loop and live-open-loop execution need Alpamayo and CARLA Python packages
+in the same environment. `requirements-carla.txt` pins `carla==0.9.16`:
 
 ```bash
-uv venv a1_5_carla_venv --python 3.12
-source a1_5_carla_venv/bin/activate
+uv venv a_carla_venv --python 3.12
+source a_carla_venv/bin/activate
 uv sync --active
 python -m ensurepip --upgrade
-python -m pip install --no-deps -e third_party/alpamayo1.5
-python -m pip install --no-deps -e third_party/oom-free-alpamayo  # optional: enables --oom-free
+python -m pip install --no-deps -e third_party/alpamayo1 -e third_party/alpamayo1.5 -e third_party/alpamayo2
+python -m pip install --no-deps -e third_party/oom-free-alpamayo  # optional: --oom-free (1.5)
 python -m pip install -r requirements-alpamayo.txt -r requirements-carla.txt
 ```
 

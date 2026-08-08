@@ -9,13 +9,16 @@ from scipy.spatial.transform import Rotation as R
 
 from . import config as cfg
 
+# Default replay order for the four-camera Alpamayo 1 / 1.5 rig. The open-loop
+# runner passes the selected adapter's camera order instead, so recordings made
+# with the seven-camera superset replay for any version.
 OPEN_LOOP_CAMERA_ORDER = (
-    "cam_front_left",
-    "cam_front_wide",
-    "cam_front_right",
-    "cam_front_tele",
+    "camera_cross_left_120fov",
+    "camera_front_wide_120fov",
+    "camera_cross_right_120fov",
+    "camera_front_tele_30fov",
 )
-FRONT_CAMERA_NAME = "cam_front_wide"
+FRONT_CAMERA_NAME = "camera_front_wide_120fov"
 
 
 def load_trajectory_index(data_root):
@@ -102,6 +105,7 @@ def load_open_loop_arrays(
     t0_index,
     num_history_steps=cfg.NUM_HISTORY,
     num_frames=cfg.NUM_FRAMES,
+    camera_order=OPEN_LOOP_CAMERA_ORDER,
 ):
     """Load images and ego history arrays for one open-loop inference step."""
 
@@ -109,6 +113,7 @@ def load_open_loop_arrays(
         data_root,
         frame_ids,
         t0_index,
+        camera_order=camera_order,
         num_frames=num_frames,
     )
     history_xyz, history_rot = build_ego_history(
@@ -121,4 +126,7 @@ def load_open_loop_arrays(
         "image_frames": image_frames,
         "history_xyz": history_xyz,
         "history_rot": history_rot,
+        # Recording runs at the fixed control tick, so the frame index gives the
+        # clip-relative timestamp of the newest camera frame.
+        "t0_us": int(t0_index * cfg.CONTROL_DT * 1_000_000),
     }

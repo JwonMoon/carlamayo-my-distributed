@@ -246,6 +246,64 @@ def create_open_loop_visualization_frame(
     return cv2.cvtColor(vis_img, cv2.COLOR_BGR2RGB)
 
 
+def create_live_open_loop_visualization_frame(
+    cam_img,
+    pred_xyz,
+    selected_idx,
+    frame_count,
+    inference_time,
+    cot_text,
+    speed_kmh,
+    control,
+):
+    """Overlay the model's live prediction against the autopilot's actual control.
+
+    ``control`` is the CARLA autopilot's applied ``{steer, throttle, brake}``. The
+    model predicts open-loop; it never drives, so the header makes clear the ego is
+    autopilot-driven while the projected trajectory is the model's observation.
+    """
+    vis_img = project_trajectory_to_image(cam_img, pred_xyz, selected_idx=selected_idx)
+    vis_img = cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR)
+    h, w = vis_img.shape[:2]
+
+    header = (
+        f"Frame: {frame_count} | Inference: {inference_time:.2f}s | "
+        f"Speed: {speed_kmh:.1f} km/h"
+    )
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    (tw, th), _ = cv2.getTextSize(header, font, 1.0, 2)
+    overlay = vis_img.copy()
+    cv2.rectangle(overlay, (10, 10), (min(w - 10, 10 + tw + 28), 10 + th + 28), (0, 0, 0), -1)
+    vis_img = cv2.addWeighted(overlay, 0.6, vis_img, 0.4, 0)
+    cv2.putText(vis_img, header, (24, 52), font, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+
+    overlay = vis_img.copy()
+    cv2.rectangle(overlay, (10, h - 190), (w - 10, h - 10), (0, 0, 0), -1)
+    vis_img = cv2.addWeighted(overlay, 0.6, vis_img, 0.4, 0)
+
+    autopilot_line = (
+        f"AUTOPILOT DRIVING (model open-loop) | "
+        f"Steer: {control['steer']:.2f} Throttle: {control['throttle']:.2f} "
+        f"Brake: {control['brake']:.2f}"
+    )
+    cv2.putText(
+        vis_img, autopilot_line, (20, h - 150),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (118, 185, 0), 2, cv2.LINE_AA,
+    )
+
+    cot_display = str(cot_text or "").strip()
+    cot_display = cot_display[:200] + "..." if len(cot_display) > 200 else cot_display
+    y_offset = h - 115
+    for line in textwrap.wrap(f"Predicted CoC: {cot_display}", width=120)[:3]:
+        cv2.putText(
+            vis_img, line, (20, y_offset),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA,
+        )
+        y_offset += 30
+
+    return cv2.cvtColor(vis_img, cv2.COLOR_BGR2RGB)
+
+
 def save_open_loop_video(
     predictions,
     camera_images,

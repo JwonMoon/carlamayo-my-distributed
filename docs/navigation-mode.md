@@ -2,13 +2,15 @@
 
 Navigation mode runs Alpamayo closed-loop trajectory generation with a runtime text instruction. Use it when you want the ego vehicle to follow a natural-language driving command such as turning, lane choice, or route preference.
 
+> Navigation requires `--version 1.5` or `--version 2` (Alpamayo 1 / R1 has no navigation conditioning). Classifier-free-guidance weights other than `1.0` are supported only by `--version 1.5`.
+
 ## Start CARLA
 
 Start CARLA before launching the integration script:
 
 ```bash
 cd ~/carla
-./CarlaUE4.sh -RenderOffScreen
+./CarlaUE4.sh -RenderOffScreen -quality-level=Epic
 ```
 
 > Do not add `-quality-level=Low`; low-quality rendering can degrade camera inputs.
@@ -24,14 +26,14 @@ export CARLA_ROOT=~/carla
 From the repository root:
 
 ```bash
-source a1_5_carla_venv/bin/activate
-python carlamayo_closed_loop.py --mode navigation --pygame-ui
+source a_carla_venv/bin/activate
+python carlamayo.py --loop closed --version 1.5 --mode navigation --pygame-ui
 ```
 
 Closed-loop loading defaults to full precision. On lower-VRAM machines, add `--quantization`:
 
 ```bash
-python carlamayo_closed_loop.py --mode navigation --pygame-ui --quantization
+python carlamayo.py --loop closed --version 1.5 --mode navigation --pygame-ui --quantization
 ```
 
 The pygame UI starts paused automatically so you can enter the first navigation prompt
@@ -71,13 +73,13 @@ Prepare to stop at the traffic light | 1.0
 
 ```bash
 # Non-blocking inference worker.
-python carlamayo_closed_loop.py --mode navigation --pygame-ui --async
+python carlamayo.py --loop closed --version 1.5 --mode navigation --pygame-ui --async
 
 # Lower VRAM model loading.
-python carlamayo_closed_loop.py --mode navigation --pygame-ui --quantization
+python carlamayo.py --loop closed --version 1.5 --mode navigation --pygame-ui --quantization
 
 # Exact returned-logits baseline for debugging memory changes.
-python carlamayo_closed_loop.py --mode navigation --pygame-ui --keep-generate-logits
+python carlamayo.py --loop closed --version 1.5 --mode navigation --pygame-ui --keep-generate-logits
 
 ```
 

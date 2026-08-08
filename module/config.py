@@ -7,7 +7,8 @@ import os
 CARLA_AGENT_ROOT = os.path.expanduser("~/carla")
 
 # Alpamayo Configuration
-NUM_CAMERAS = 4
+# The camera count and rig are version-specific and come from the selected
+# ``--version`` adapter (module.adapters); they are no longer fixed here.
 IMG_HEIGHT = 1080
 IMG_WIDTH = 1920
 IMG_CHANNELS = 3
@@ -20,6 +21,8 @@ NUM_TRAJ_SAMPLES = 1
 # Video Configuration
 SAVE_VIDEO = True
 OUTPUT_VIDEO = "carla_alpamayo_closed_loop_result.mp4"
+OPEN_LOOP_OUTPUT_VIDEO = "carla_alpamayo_open_loop_result.mp4"
+LIVE_OPEN_LOOP_OUTPUT_VIDEO = "carla_alpamayo_live_open_loop_result.mp4"
 VIDEO_FPS = 10
 PYGAME_WINDOW_WIDTH = 1280
 PYGAME_WINDOW_HEIGHT = 900
@@ -45,9 +48,6 @@ CONTROL_SMOOTH_ALPHA = 0.25
 
 # Auto-respawn after collision.
 RESPAWN_COLLISION_COOLDOWN_FRAMES = 10
-
-# Keep Alpamayo's original Qwen-VL image-token budget fixed from config.
-VLM_IMAGE_PIXELS = 196608
 
 # Official PID follower config
 PID_LOOKAHEAD_MIN_M = 4.0

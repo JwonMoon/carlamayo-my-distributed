@@ -27,7 +27,7 @@ def is_allowed_npc_vehicle_blueprint(blueprint):
 class CARLAInterface:
     """Interface for CARLA simulation."""
 
-    def __init__(self):
+    def __init__(self, camera_configs=None):
         self.client = None
         self.world = None
         self.ego_vehicle = None
@@ -40,13 +40,15 @@ class CARLAInterface:
         self.npc_walker_controller_ids = []
         self.tm_port = 8000
 
-        self.camera_configs = {
-            "cam_front_left": {"x": 1.0, "y": -0.5, "z": 2.4, "pitch": 0.0, "yaw": -60.0, "fov": 120},
-            "cam_front_wide": {"x": 1.5, "y": 0.0, "z": 2.4, "pitch": 0.0, "yaw": 0.0, "fov": 95},
-            "cam_front_right": {"x": 1.0, "y": 0.5, "z": 2.4, "pitch": 0.0, "yaw": 60.0, "fov": 120},
-            "cam_front_tele": {"x": 1.5, "y": 0.0, "z": 2.4, "pitch": 0.0, "yaw": 0.0, "fov": 30},
-        }
-        self.camera_order = ["cam_front_left", "cam_front_wide", "cam_front_right", "cam_front_tele"]
+        # The camera rig is version-specific and supplied by the selected Alpamayo
+        # adapter (module.adapters). Fall back to the four-camera front rig used by
+        # Alpamayo 1 / 1.5 when none is given.
+        if camera_configs is None:
+            from module.adapters._rigs import FOUR_CAMERA_RIG
+
+            camera_configs = FOUR_CAMERA_RIG
+        self.camera_configs = dict(camera_configs)
+        self.camera_order = list(self.camera_configs)
 
     def connect(self, host="localhost", port=2000):
         print(f"Connecting to CARLA at {host}:{port}...")
@@ -348,6 +350,31 @@ class CARLAInterface:
         control.throttle = float(throttle)
         control.brake = float(brake)
         self.ego_vehicle.apply_control(control)
+
+    def set_ego_autopilot(self, enabled, target_speed_kmh=None):
+        """Hand ego control to the CARLA Traffic Manager (live-open-loop driving).
+
+        The Traffic Manager, not Alpamayo, drives the ego vehicle so the model can
+        be observed open-loop against a real autopilot policy. Returns the traffic
+        manager so callers can tune it further.
+        """
+        traffic_manager = self.client.get_trafficmanager(self.tm_port)
+        if enabled and target_speed_kmh is not None:
+            # TM speed is expressed as a percentage difference from the road limit.
+            speed_limit = self.ego_vehicle.get_speed_limit() or 30.0
+            percent_diff = 100.0 * (1.0 - float(target_speed_kmh) / max(speed_limit, 1.0))
+            traffic_manager.vehicle_percentage_speed_difference(self.ego_vehicle, percent_diff)
+        self.ego_vehicle.set_autopilot(bool(enabled), self.tm_port)
+        return traffic_manager
+
+    def get_ego_control(self):
+        """Return the ego vehicle's current applied control (steer/throttle/brake)."""
+        control = self.ego_vehicle.get_control()
+        return {
+            "steer": float(control.steer),
+            "throttle": float(control.throttle),
+            "brake": float(control.brake),
+        }
 
     def tick(self):
         self.world.tick()

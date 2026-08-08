@@ -77,3 +77,5 @@ def test_load_open_loop_arrays_preserves_camera_and_frame_order(tmp_path):
     assert sample["image_frames"].shape == (4, 2, 2, 3, 3)
     assert sample["history_xyz"].shape == (2, 3)
     assert sample["history_rot"].shape == (2, 3, 3)
+    # The newest frame's clip-relative timestamp comes from the fixed control tick.
+    assert sample["t0_us"] == 100_000

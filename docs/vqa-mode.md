@@ -2,13 +2,15 @@
 
 VQA mode asks Alpamayo a driving-scene question over the current CARLA camera frames. It is for visual question answering only; VQA does not produce trajectories, so the ego vehicle is held braked while this mode is active.
 
+> VQA requires `--version 1.5` or `--version 2` (Alpamayo 1 / R1 has no VQA).
+
 ## Start CARLA
 
 Start CARLA before launching the integration script:
 
 ```bash
 cd ~/carla
-./CarlaUE4.sh -RenderOffScreen
+./CarlaUE4.sh -RenderOffScreen -quality-level=Epic
 ```
 
 > Do not add `-quality-level=Low`; low-quality rendering can degrade camera inputs.
@@ -24,20 +26,20 @@ export CARLA_ROOT=~/carla
 From the repository root:
 
 ```bash
-source a1_5_carla_venv/bin/activate
-python carlamayo_closed_loop.py --mode vqa --pygame-ui
+source a_carla_venv/bin/activate
+python carlamayo.py --loop closed --version 2 --mode vqa --pygame-ui
 ```
 
 Closed-loop loading defaults to full precision. On lower-VRAM machines, add `--quantization`:
 
 ```bash
-python carlamayo_closed_loop.py --mode vqa --pygame-ui --quantization
+python carlamayo.py --loop closed --version 2 --mode vqa --pygame-ui --quantization
 ```
 
 You can also provide the first question on the command line:
 
 ```bash
-python carlamayo_closed_loop.py --mode vqa --pygame-ui \
+python carlamayo.py --loop closed --version 2 --mode vqa --pygame-ui \
   --vqa-question "What traffic elements are visible?"
 ```
 
@@ -69,10 +71,10 @@ The answer is shown in the pygame panel and printed to the terminal.
 
 ```bash
 # Non-blocking inference worker.
-python carlamayo_closed_loop.py --mode vqa --pygame-ui --async
+python carlamayo.py --loop closed --version 2 --mode vqa --pygame-ui --async
 
 # Lower VRAM model loading.
-python carlamayo_closed_loop.py --mode vqa --pygame-ui --quantization
+python carlamayo.py --loop closed --version 2 --mode vqa --pygame-ui --quantization
 
 ```
 
