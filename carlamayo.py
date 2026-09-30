@@ -18,8 +18,12 @@ module with a preset loop for backward compatibility.
 
 import argparse
 
-from module.adapters import SUPPORTED_VERSIONS, get_adapter
+from module.adapters import SUPPORTED_VERSIONS, get_adapter, normalize_version
 from module.run_dir import DEFAULT_RUNS_ROOT, RunDir
+
+IMAGE_ENCODINGS = ("jpeg", "raw_rgb8")
+SERVER_ONLY_FLAGS = ("quantization", "oom_free", "oom_free_headroom_gb", "oom_free_margin",
+                     "oom_free_resident")
 
 LOOPS = ("open", "closed", "live-open")
 
@@ -74,6 +78,19 @@ def build_parser(preset_loop=None):
     parser.add_argument("--no-run-dir", action="store_true",
                         help="Write outputs to the current directory like upstream did.")
 
+    # Remote inference (two-host setup): send frames to alpamayo_server.py instead of
+    # loading the model in this process. Model-loading flags then belong to the server.
+    parser.add_argument("--inference-server", default=None, metavar="HOST:PORT",
+                        help="Alpamayo inference server address, e.g. 172.31.20.213:50051.")
+    parser.add_argument("--image-encoding", choices=IMAGE_ENCODINGS, default="jpeg",
+                        help="[remote] How camera frames are sent. raw_rgb8 is for parity checks.")
+    parser.add_argument("--jpeg-quality", type=int, default=95,
+                        help="[remote] JPEG quality when --image-encoding jpeg.")
+    parser.add_argument("--rpc-timeout-sec", type=float, default=120.0,
+                        help="[remote] Deadline for one Predict/AnswerQuestion call.")
+    parser.add_argument("--rpc-connect-timeout-sec", type=float, default=30.0,
+                        help="[remote] How long to wait for the server to be reachable and warmed up.")
+
     # CARLA connection (override to run alongside other simulators on one host).
     parser.add_argument("--carla-host", default="localhost", help="CARLA server host.")
     parser.add_argument("--carla-port", type=int, default=2000, help="CARLA RPC port.")
@@ -107,8 +124,8 @@ def main(argv=None, preset_loop=None):
     args = parser.parse_args(argv)
     loop = preset_loop or args.loop
 
-    adapter = get_adapter(args.version)
     args.run_dir = None if args.no_run_dir else create_run_dir(args, loop)
+    adapter = build_adapter(args, parser)
 
     try:
         if loop == "open":
@@ -130,22 +147,51 @@ def main(argv=None, preset_loop=None):
             args.run_dir.close()
 
 
+def build_adapter(args, parser=None):
+    """Local model adapter, or a remote proxy when --inference-server is given.
+
+    The remote adapter does not connect here; ``load_model()`` inside the loop does.
+    """
+    if not args.inference_server:
+        return get_adapter(args.version)
+
+    used = [f for f in SERVER_ONLY_FLAGS if getattr(args, f, None)]
+    if args.device_map != "auto":
+        used.append("device_map")
+    if used:
+        message = (
+            "--inference-server is set, but these options configure model loading and "
+            f"belong to alpamayo_server.py on the inference host: {', '.join('--' + f.replace('_', '-') for f in used)}"
+        )
+        if parser is not None:
+            parser.error(message)
+        raise SystemExit(message)
+
+    from module.remote.client import RemoteAlpamayoAdapter
+
+    run_dir = getattr(args, "run_dir", None)
+    return RemoteAlpamayoAdapter(
+        args.inference_server,
+        expected_version=args.version,
+        image_encoding=args.image_encoding,
+        jpeg_quality=args.jpeg_quality,
+        rpc_timeout_sec=args.rpc_timeout_sec,
+        connect_timeout_sec=args.rpc_connect_timeout_sec,
+        run_id=run_dir.run_id if run_dir is not None else "",
+    )
+
+
 def create_run_dir(args, loop):
     """Create the per-run output folder, start the stdout log and save the arguments."""
     mode = args.mode if loop == "closed" else None
     run_dir = RunDir.create(
-        loop=loop, version=adapter_version_token(args.version), mode=mode,
+        loop=loop, version=normalize_version(args.version) or args.version, mode=mode,
         tag=args.run_tag, root=args.runs_root,
     )
     run_dir.start_log()
     run_dir.write_args(args, extra={"loop": loop})
     print(f"Run folder: {run_dir}  (run_id={run_dir.run_id})")
     return run_dir
-
-
-def adapter_version_token(version):
-    """Normalize a --version alias to its canonical token for the folder name."""
-    return get_adapter(version).version
 
 
 if __name__ == "__main__":

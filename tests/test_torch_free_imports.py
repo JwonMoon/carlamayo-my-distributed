@@ -30,6 +30,8 @@ TORCH_FREE_MODULES = [
     "module.data_collection",
     "module.run_dir",
     "module.remote.codec",
+    "module.remote.client",
+    "carlamayo",
 ]
 
 

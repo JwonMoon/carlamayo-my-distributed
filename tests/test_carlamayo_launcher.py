@@ -43,6 +43,57 @@ def test_parsed_defaults_and_overrides():
     assert args.runs_root == "runs"
     assert args.run_tag is None
     assert args.no_run_dir is False
+    assert args.inference_server is None
+    assert args.image_encoding == "jpeg"
+    assert args.jpeg_quality == 95
+    assert args.rpc_timeout_sec == 120.0
+    assert args.rpc_connect_timeout_sec == 30.0
+
+
+def test_remote_flags_parse_and_build_remote_adapter_without_connecting():
+    parser = carlamayo.build_parser()
+    args = parser.parse_args(
+        ["--version", "1.5", "--loop", "closed", "--inference-server", "10.0.0.2:50051",
+         "--image-encoding", "raw_rgb8", "--jpeg-quality", "80", "--rpc-timeout-sec", "5"]
+    )
+    adapter = carlamayo.build_adapter(args, parser)
+    from module.remote.client import RemoteAlpamayoAdapter
+
+    assert isinstance(adapter, RemoteAlpamayoAdapter)
+    assert adapter.is_remote and adapter.target == "10.0.0.2:50051"
+    assert adapter.expected_version == "1.5"
+    assert adapter.image_encoding == "raw_rgb8" and adapter.jpeg_quality == 80
+    assert adapter.rpc_timeout_sec == 5.0
+    assert adapter.source_camera_configs == {}  # rig arrives with the handshake
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [["--quantization"], ["--oom-free"], ["--oom-free-resident", "4"], ["--device-map", "cuda:0"]],
+)
+def test_server_only_flags_are_rejected_with_remote(extra):
+    parser = carlamayo.build_parser()
+    args = parser.parse_args(["--version", "1.5", "--loop", "open", "--inference-server", "h:1", *extra])
+    with pytest.raises(SystemExit):
+        carlamayo.build_adapter(args, parser)
+
+
+def test_main_with_remote_does_not_import_local_adapters(tmp_path, monkeypatch):
+    import types
+
+    seen = {}
+    monkeypatch.setattr(carlamayo, "get_adapter", lambda v: (_ for _ in ()).throw(AssertionError("local adapter imported")))
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "module.loops.open_loop",
+        types.SimpleNamespace(run=lambda adapter, args: seen.update(adapter=adapter, run_dir=args.run_dir)),
+    )
+    carlamayo.main(
+        ["--version", "1.5", "--loop", "open", "--inference-server", "h:1", "--runs-root", str(tmp_path)]
+    )
+    assert seen["adapter"].is_remote
+    assert seen["adapter"].run_id == seen["run_dir"].run_id
+    assert seen["run_dir"].run_id.endswith("_open_v1.5")
 
 
 def test_main_creates_run_dir_and_passes_it_to_the_loop(tmp_path, monkeypatch):

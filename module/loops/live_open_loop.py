@@ -56,7 +56,9 @@ def run(adapter, args):
     print("=" * 60)
     print(f"CARLA Live Open-Loop with {adapter.display_name} (autopilot driving)")
     print("=" * 60)
-    if args.oom_free:
+    if adapter.is_remote:
+        print(f"Inference: remote server at {adapter.target}")
+    elif args.oom_free:
         print("Model loading: OOM-free CPU<->GPU demand layering (full-precision)")
     else:
         print(f"Quantization: {'ON (4-bit)' if args.quantization else 'OFF (full-precision)'}")
@@ -68,10 +70,15 @@ def run(adapter, args):
         print(f"Navigation prompt (observation only): {nav_text}")
 
     print("\nLoading model...")
-    configure_cuda_linalg_library(args.cuda_linalg_library)
+    if not adapter.is_remote:
+        configure_cuda_linalg_library(args.cuda_linalg_library)
     oom_kwargs = collect_oom_kwargs(args)
     model = processor = None
-    if not args.oom_free:
+    if adapter.is_remote:
+        model, processor = adapter.load_model()
+        print("Connected to inference server!")
+        print(adapter.runtime_summary())
+    elif not args.oom_free:
         model, processor = adapter.load_model(
             use_quantization=args.quantization, device_map=args.device_map
         )
@@ -170,6 +177,8 @@ def run(adapter, args):
                             req["images_array"], req["history_xyz"], req["history_rot"],
                             req["t0_us"],
                         )
+                        if adapter.is_remote:
+                            model_data["meta"] = {"frame": int(req["frame"])}
                         pred_xyz, extra = _run_inference_with_linalg_fallback(model_data)
                         result = {
                             "pred_xyz": pred_xyz, "extra": extra,
@@ -269,6 +278,8 @@ def run(adapter, args):
                         images_array, history_xyz, history_rot,
                         int(frame_count * cfg.CONTROL_DT * 1_000_000),
                     )
+                    if adapter.is_remote:
+                        model_data["meta"] = {"frame": frame_count}
                     model_start = time.time()
                     pred_xyz, extra = _run_inference_with_linalg_fallback(model_data)
                     _ingest_result(pred_xyz, extra, time.time() - model_start, frame_count)

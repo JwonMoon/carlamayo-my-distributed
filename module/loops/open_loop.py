@@ -20,15 +20,18 @@ from module.inference import (
     extract_trajectory_samples,
 )
 from module.loops._common import collect_oom_kwargs
-from module.run_dir import resolve_output_video
 from module.open_loop_dataset import (
     load_front_camera_image,
     load_open_loop_arrays,
     load_trajectory_index,
 )
+from module.run_dir import resolve_output_video
 
 
 def _load_model(adapter, args):
+    if adapter.is_remote:
+        # Model options live on the server; the handshake fills in rig and capabilities.
+        return adapter.load_model()
     if args.oom_free and not adapter.supports_oom_free:
         raise SystemExit(
             f"{adapter.display_name} does not support OOM-free demand layering "
@@ -47,17 +50,15 @@ def run(adapter, args):
     """Run open-loop inference for ``adapter`` over the recorded dataset."""
 
     output_video = resolve_output_video(args, cfg.OPEN_LOOP_OUTPUT_VIDEO)
-    camera_order = list(adapter.source_camera_configs)
-    front_camera_name = camera_order[adapter.viz_camera_slot]
 
     print("=" * 60)
     print(f"CARLA -> {adapter.display_name} Open-Loop Inference")
     print("=" * 60)
     print(f"Data root: {args.data_root}")
-    print(f"Quantization: {'ON (4-bit)' if args.quantization else 'OFF (full-precision)'}")
-    if args.oom_free:
-        print("Model loading: OOM-free CPU<->GPU demand layering")
-    print(f"Cameras: {adapter.num_cameras} ({', '.join(camera_order)})")
+    if not adapter.is_remote:
+        print(f"Quantization: {'ON (4-bit)' if args.quantization else 'OFF (full-precision)'}")
+        if args.oom_free:
+            print("Model loading: OOM-free CPU<->GPU demand layering")
 
     trajectory, frame_ids = load_trajectory_index(args.data_root)
     start_index = cfg.NUM_FRAMES - 1
@@ -68,9 +69,15 @@ def run(adapter, args):
         print("Not enough frames to build the requested camera history.")
         return
 
+    # A remote adapter only learns its camera rig from the server handshake, so the
+    # model must be "loaded" (connected) before the camera order is read.
     print("\nLoading model...")
     model, processor = _load_model(adapter, args)
     print("Model loaded!")
+    print(f"CARLA -> {adapter.display_name}")
+    camera_order = list(adapter.source_camera_configs)
+    front_camera_name = camera_order[adapter.viz_camera_slot]
+    print(f"Cameras: {adapter.num_cameras} ({', '.join(camera_order)})")
 
     predictions, cot_texts, inference_times, camera_images = [], [], [], []
     for frame_index in range(start_index, len(frame_ids)):

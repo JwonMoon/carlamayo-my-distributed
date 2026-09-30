@@ -63,7 +63,7 @@ def make_server(tmp_path):
 
 
 def test_model_info_reports_rig_config_and_capabilities(make_server):
-    servicer, stub, _ = make_server()
+    _, stub, _ = make_server()
     info = stub.GetModelInfo(pb.GetModelInfoRequest(client_protocol_version=srv.PROTOCOL_VERSION))
     assert info.protocol_version == srv.PROTOCOL_VERSION
     assert info.version == "fake" and info.display_name == "Fake Alpamayo"
@@ -129,7 +129,7 @@ def test_vqa_roundtrip(make_server):
 
 
 def test_server_mirrors_run_folder_once(make_server, tmp_path):
-    servicer, stub, _ = make_server()
+    _, stub, _ = make_server()
     stub.Predict(_predict_request(run_id="20261001-120000_closed_v1.5_normal"))
     stub.Predict(_predict_request(run_id="20261001-120000_closed_v1.5_normal"))
     run_path = tmp_path / "runs" / "20261001-120000_closed_v1.5_normal"

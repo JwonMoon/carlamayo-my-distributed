@@ -52,7 +52,7 @@
 | `module/remote/server.py` | `AlpamayoServicer(adapter, model, processor)`: `GetModelInfo`, `Predict`, `AnswerQuestion`. 모델 호출 `threading.Lock`, 두 번째 동시 요청은 `RESOURCE_EXHAUSTED`, 워밍업 전 `FAILED_PRECONDITION`. cuSOLVER→MAGMA 재시도(`closed_loop.py:244-256` 로직)를 여기로 이동. `grpc_health` 등록. `serve(adapter, host, port, max_message_mb, ...)` |
 | `tests/test_remote_server.py` | `grpc.server`를 `localhost:0`에 띄우는 fixture. ModelInfo 내용, Predict 왕복, VQA, 동시성 거절, 미워밍업 거절, `FakeAdapter(sleep=2)` + 0.5 s deadline → `DEADLINE_EXCEEDED` |
 
-## ☐ 4. RemoteAlpamayoAdapter + 런처 플래그
+## ☑ 4. RemoteAlpamayoAdapter + 런처 플래그
 
 | 항목 | 내용 |
 |---|---|
@@ -65,11 +65,11 @@
 | `tests/test_carlamayo_launcher.py`, `tests/test_remote_client.py` | 플래그 파싱, 원격+서버 플래그 조합 거부, `build_adapter`가 연결 없이 원격 어댑터 반환, FakeAdapter 서버 상대로 `load_model`이 리그를 동일하게 채우는지, 버전 불일치 시 종료, deadline 매핑 |
 | import 가드 테스트 | `import module.remote.client` 후 `sys.modules`에 `torch`·`carla`가 없음을 확인 |
 
-## ☐ 5. `alpamayo_server.py`
+## ☑ 5. `alpamayo_server.py`
 
 | 항목 | 내용 |
 |---|---|
-| CLI | `--version {1,1.5,2}`(필수), `--host 0.0.0.0`, `--port 50051`, `--quantization`, `--oom-free`, `--oom-free-headroom-gb/--oom-free-margin/--oom-free-resident`, `--device-map auto`, `--cuda-linalg-library magma`, `--no-warmup`, `--max-message-mb 512` |
+| CLI | `--version {1,1.5,2}`(필수, `--fake`면 생략 가능), `--fake`(GPU 없이 FakeAdapter 서빙: 네트워크·보안그룹·플래그 검증용), `--host 0.0.0.0`, `--port 50051`, `--quantization`, `--oom-free`, `--oom-free-headroom-gb/--oom-free-margin/--oom-free-resident`, `--device-map auto`, `--cuda-linalg-library magma`, `--no-warmup`, `--max-message-mb 512`, `--runs-root runs`, `--profile/--no-profile`, `--profile-interval-sec` |
 | 시작 순서 | `get_adapter` → `configure_cuda_linalg_library` → `load_model`(OOM kwargs는 `_common.collect_oom_kwargs` 재사용) → 워밍업 1회(0 이미지 + 0 이력으로 `Predict` 경로 실행, flash-attn/cuBLAS 커널 컴파일) → `warmed_up=True`, health SERVING → serve |
 | 로그 | 요청마다 `request_id`, frame, revisions, 디코드/전처리/추론 시간, VRAM |
 | CFG/VQA | `Predict`의 `navigation_weight`를 그대로 `run_inference`에, `AnswerQuestion`은 `run_vqa`에 |

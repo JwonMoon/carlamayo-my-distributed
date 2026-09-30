@@ -7,19 +7,29 @@ from .base import AlpamayoAdapter
 SUPPORTED_VERSIONS = ("1", "1.5", "2")
 
 
+VERSION_ALIASES = {
+    "1": "1", "r1": "1", "1.0": "1", "alpamayo1": "1", "alpamayo-r1": "1",
+    "1.5": "1.5", "15": "1.5", "alpamayo1.5": "1.5",
+    "2": "2", "2.0": "2", "super": "2", "alpamayo2": "2",
+}
+
+
+def normalize_version(version: str) -> str | None:
+    """Map a ``--version`` alias to its canonical token, or None when unknown.
+
+    Torch-free, so the remote client can validate the server's version without
+    importing any model adapter.
+    """
+    return VERSION_ALIASES.get(str(version).strip().lower())
+
+
 def get_adapter(version: str) -> AlpamayoAdapter:
     """Return the adapter for one supported Alpamayo ``--version`` token.
 
     Adapters are imported lazily so selecting one version never imports another
     version's model package.
     """
-    normalized = str(version).strip().lower()
-    aliases = {
-        "1": "1", "r1": "1", "1.0": "1", "alpamayo1": "1", "alpamayo-r1": "1",
-        "1.5": "1.5", "15": "1.5", "alpamayo1.5": "1.5",
-        "2": "2", "2.0": "2", "super": "2", "alpamayo2": "2",
-    }
-    resolved = aliases.get(normalized)
+    resolved = normalize_version(version)
     if resolved == "1":
         from .alpamayo_r1 import AlpamayoR1Adapter
 
@@ -38,4 +48,4 @@ def get_adapter(version: str) -> AlpamayoAdapter:
     )
 
 
-__all__ = ["AlpamayoAdapter", "SUPPORTED_VERSIONS", "get_adapter"]
+__all__ = ["AlpamayoAdapter", "SUPPORTED_VERSIONS", "VERSION_ALIASES", "get_adapter", "normalize_version"]

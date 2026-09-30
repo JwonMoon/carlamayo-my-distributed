@@ -18,6 +18,7 @@
 | 2026-09-30 | 가져온 직후, CI와 같은 의존성(CPU torch, numpy, scipy, pillow, opencv-headless, pytest), `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests` | **55 passed** |
 | 2026-09-30 | 로드맵 1·1b 구현 후, 같은 조건 | **79 passed** |
 | 2026-09-30 | 로드맵 2·3 구현 후, 같은 조건 + grpcio/grpcio-tools/grpcio-health-checking/protobuf | **104 passed** |
+| 2026-09-30 | 로드맵 4·5 + 프로파일링 모듈 구현 후, + psutil/nvidia-ml-py | **133 passed** |
 
 ## 변경 표
 
@@ -50,5 +51,11 @@
 | 2026-09-30 | RPC 계약 | `module/remote/codec.py`(신규), `tests/test_remote_codec.py` | 이미지 스택 JPEG/raw 인코딩·디코딩(RGB 유지), Tensor 직렬화, PSNR. torch 비의존 | [ADR 0003](adr/0003-image-encoding-jpeg-default.md) | 2 |
 | 2026-09-30 | 추론 서버 | `module/remote/fake_adapter.py`(신규) | 입력의 결정적 함수로 궤적을 돌려주는 torch-free 어댑터(테스트·드라이런용, `sleep_sec`/`fail_with` 옵션) | GPU 없이 RPC 경로 검증 | 3 |
 | 2026-09-30 | 추론 서버 | `module/remote/server.py`(신규), `tests/test_remote_server.py` | `AlpamayoServicer`(디코드 → `prepare_model_input` → `run_inference`/`run_vqa`, 모델 lock, 미워밍업 `FAILED_PRECONDITION`, 동시 요청 `RESOURCE_EXHAUSTED`, 잘못된 페이로드 `INVALID_ARGUMENT`, cuSOLVER→MAGMA 재시도, run_id별 `runs/<run_id>/server_info.json`, `on_request` 훅), `create_server`(헬스 서비스, 512 MB 메시지, keepalive), `build_model_info` | 서버 핵심. `closed_loop.py:244-256`의 linalg 재시도 로직을 서버로 이동 | 3 |
+| 2026-09-30 | 원격 어댑터 | `module/adapters/__init__.py` | `VERSION_ALIASES`, `normalize_version()` 노출(torch 없이 버전 별칭 정규화) | 클라이언트 버전 검증·폴더명에 재사용 | 4 |
+| 2026-09-30 | 원격 어댑터 | `module/remote/client.py`(신규), `tests/test_remote_client.py` | `RemoteAlpamayoAdapter`: `load_model()`=접속+`GetModelInfo` 핸드셰이크(버전·프로토콜·`NUM_FRAMES/NUM_HISTORY/IMG_*/NUM_TRAJ_SAMPLES` 검증, 리그·capability 복사, 워밍업 대기), `prepare_model_input()`=JPEG/raw 인코딩(워커 스레드에서), `run_inference/run_vqa`=RPC 호출·numpy 반환, `RemoteInferenceError`, 오류 후 재핸드셰이크, `on_rpc` 프로파일 훅 | 루프 코드 변경 없이 모델을 원격으로, [ADR 0001](adr/0001-topology-client-on-sim-host.md) | 4 |
+| 2026-09-30 | 원격 어댑터 | `carlamayo.py` | `--inference-server`, `--image-encoding`, `--jpeg-quality`, `--rpc-timeout-sec`, `--rpc-connect-timeout-sec`; `build_adapter()`(원격이면 `RemoteAlpamayoAdapter`, 서버 전용 플래그 `--quantization/--oom-free*/--device-map` 거부); run 폴더명은 `normalize_version`으로(원격일 때 torch 어댑터 미import) | | 4 |
+| 2026-09-30 | 원격 어댑터 | `module/loops/{closed_loop,live_open_loop,open_loop}.py` | `adapter.is_remote`면 CUDA linalg 설정·모델 옵션 출력 생략, `load_model()`만 호출. open-loop는 핸드셰이크 후 카메라 순서 계산(리그가 서버에서 오므로). 원격일 때 `model_data["meta"]`에 frame·revision 전달 | | 4 |
+| 2026-09-30 | 추론 서버 | `alpamayo_server.py`(신규), `tests/test_alpamayo_server_cli.py` | CLI(`--version`/`--fake`, `--host/--port`, 모델 옵션, `--no-warmup`, `--runs-root`, `--profile`), 로드 → 서버 기동(NOT_SERVING) → 더미 워밍업 → SERVING, SIGINT/SIGTERM 종료 | B에서 실행하는 유일한 프로세스 | 5 |
+| 2026-09-30 | 프로파일링 | `module/profiling.py`(신규), `tests/test_profiling.py` | `CsvRecorder`(백그라운드 스레드 CSV), `gpu_stats`(pynvml), `SystemSampler`(psutil CPU/RAM/네트워크 + GPU), `ClientProfiler`(tick/rpc/sys CSV), `ServerProfiler`(run_id별 `profile_server*.csv`) | 로드맵 6b 기반. 루프 연결은 다음 단계 | 6b |
 
-> 위 변경 후 `python -m pytest -q tests`: **104 passed**.
+> 위 변경 후 `python -m pytest -q tests`: **133 passed**.
