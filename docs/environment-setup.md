@@ -116,10 +116,34 @@ huggingface-cli login
 
 Create or copy your token from: <https://huggingface.co/settings/tokens>
 
-## 3. Combined Closed-Loop Environment
+## 3. Two-Host Layout (this fork)
 
-Closed-loop and live-open-loop execution need Alpamayo and CARLA Python packages
-in the same environment. `requirements-carla.txt` pins `carla==0.9.16`:
+This fork runs the simulator and the model on different machines, so the upstream
+"combined" environment is no longer needed:
+
+| Host | Environment | Runs |
+|---|---|---|
+| Sim host (CARLA) | §1 environment + `requirements-sim.txt` (no torch) | CARLA server, `carlamayo.py --inference-server <host>:50051`, `data_collect.py` |
+| Inference host (GPU) | §2 environment + `requirements-inference.txt` | `alpamayo_server.py --version 1.5` |
+
+```bash
+# Sim host
+python3.10 -m venv venv-sim && source venv-sim/bin/activate
+pip install -r requirements-sim.txt
+export CARLA_ROOT=~/carla
+
+# Inference host (after §2)
+python -m pip install -r requirements-inference.txt
+python alpamayo_server.py --version 1.5 --host <private-ip> --port 50051
+```
+
+Per-instance commands are collected in [cheatsheet.md](cheatsheet.md); the design is in
+[distributed-architecture.md](distributed-architecture.md).
+
+### 3.1 Single-host closed-loop (upstream behaviour)
+
+Closed-loop and live-open-loop without `--inference-server` still need the Alpamayo and
+CARLA packages in one environment:
 
 ```bash
 uv venv a_carla_venv --python 3.12
@@ -128,7 +152,7 @@ uv sync --active
 python -m ensurepip --upgrade
 python -m pip install --no-deps -e third_party/alpamayo1 -e third_party/alpamayo1.5 -e third_party/alpamayo2
 python -m pip install --no-deps -e third_party/oom-free-alpamayo  # optional: --oom-free (1.5)
-python -m pip install -r requirements-alpamayo.txt -r requirements-carla.txt
+python -m pip install -r requirements-inference.txt -r requirements-sim.txt
 ```
 
 If `agents.navigation.controller` is not found, set `CARLA_ROOT` to the directory that contains `PythonAPI/carla`:

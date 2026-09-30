@@ -27,17 +27,19 @@ From the repository root:
 
 ```bash
 source a_carla_venv/bin/activate
-python carlamayo.py --loop closed --version 1.5 --mode navigation --pygame-ui
+python carlamayo.py --loop closed --version 1.5 --mode navigation
 ```
 
 Closed-loop loading defaults to full precision. On lower-VRAM machines, add `--quantization`:
 
 ```bash
-python carlamayo.py --loop closed --version 1.5 --mode navigation --pygame-ui --quantization
+python carlamayo.py --loop closed --version 1.5 --mode navigation --quantization
 ```
 
-The pygame UI starts paused automatically so you can enter the first navigation prompt
-before the CARLA loop begins driving.
+The pygame UI is on by default (`--no-pygame-ui` disables it). When no `--navigation-text` is
+given the simulation starts paused so you can type the first prompt; press `Ctrl+P` to drive.
+With an initial prompt on the command line it starts driving immediately (`--start-paused`
+forces a pause anyway).
 
 ## Enter a Navigation Prompt
 
@@ -73,13 +75,13 @@ Prepare to stop at the traffic light | 1.0
 
 ```bash
 # Non-blocking inference worker.
-python carlamayo.py --loop closed --version 1.5 --mode navigation --pygame-ui --async
+python carlamayo.py --loop closed --version 1.5 --mode navigation --async
 
 # Lower VRAM model loading.
-python carlamayo.py --loop closed --version 1.5 --mode navigation --pygame-ui --quantization
+python carlamayo.py --loop closed --version 1.5 --mode navigation --quantization
 
 # Exact returned-logits baseline for debugging memory changes.
-python carlamayo.py --loop closed --version 1.5 --mode navigation --pygame-ui --keep-generate-logits
+python carlamayo.py --loop closed --version 1.5 --mode navigation --keep-generate-logits
 
 ```
 

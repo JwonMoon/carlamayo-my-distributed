@@ -43,6 +43,27 @@ def trajectory_is_stale(trajectory_ts, now=None, max_age_sec=None):
     return (now - float(trajectory_ts)) > float(max_age_sec)
 
 
+def should_start_paused(args):
+    """Start paused only when a prompt must be typed before driving makes sense.
+
+    Explicit ``--start-paused`` / ``--no-start-paused`` win. Otherwise: navigation or VQA
+    mode without an initial prompt on the command line starts paused; normal mode and
+    modes with an initial prompt start driving immediately. Without the pygame UI there
+    is no way to resume, so the loop never starts paused.
+    """
+    if not getattr(args, "pygame_ui", False):
+        return False
+    explicit = getattr(args, "start_paused", None)
+    if explicit is not None:
+        return bool(explicit)
+    mode = getattr(args, "mode", "normal")
+    if mode == "navigation":
+        return not str(getattr(args, "navigation_text", "") or "").strip()
+    if mode == "vqa":
+        return not str(getattr(args, "vqa_question", "") or "").strip()
+    return False
+
+
 def trajectory_max_age_sec(args):
     value = getattr(args, "trajectory_max_age_sec", None)
     return cfg.TRAJECTORY_MAX_AGE_SEC if value is None else float(value)

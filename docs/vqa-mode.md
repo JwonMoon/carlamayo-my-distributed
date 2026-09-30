@@ -27,24 +27,26 @@ From the repository root:
 
 ```bash
 source a_carla_venv/bin/activate
-python carlamayo.py --loop closed --version 2 --mode vqa --pygame-ui
+python carlamayo.py --loop closed --version 2 --mode vqa
 ```
 
 Closed-loop loading defaults to full precision. On lower-VRAM machines, add `--quantization`:
 
 ```bash
-python carlamayo.py --loop closed --version 2 --mode vqa --pygame-ui --quantization
+python carlamayo.py --loop closed --version 2 --mode vqa --quantization
 ```
 
 You can also provide the first question on the command line:
 
 ```bash
-python carlamayo.py --loop closed --version 2 --mode vqa --pygame-ui \
+python carlamayo.py --loop closed --version 2 --mode vqa \
   --vqa-question "What traffic elements are visible?"
 ```
 
-The pygame UI starts paused automatically so you can enter the first VQA question
-before the CARLA loop begins ticking.
+The pygame UI is on by default (`--no-pygame-ui` disables it). When no `--vqa-question` is
+given the simulation starts paused so you can type the first question; press `Ctrl+P` to
+resume. With an initial question on the command line it starts immediately (`--start-paused`
+forces a pause anyway).
 
 ## Ask a Question
 
@@ -71,10 +73,10 @@ The answer is shown in the pygame panel and printed to the terminal.
 
 ```bash
 # Non-blocking inference worker.
-python carlamayo.py --loop closed --version 2 --mode vqa --pygame-ui --async
+python carlamayo.py --loop closed --version 2 --mode vqa --async
 
 # Lower VRAM model loading.
-python carlamayo.py --loop closed --version 2 --mode vqa --pygame-ui --quantization
+python carlamayo.py --loop closed --version 2 --mode vqa --quantization
 
 ```
 

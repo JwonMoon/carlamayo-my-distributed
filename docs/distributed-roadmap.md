@@ -83,7 +83,7 @@
 | `module/loops/closed_loop.py` | PID 적용 직전 `time.time() - current_trajectory_ts > cfg.TRAJECTORY_MAX_AGE_SEC`면 `current_trajectory = None`(→ 기존 정지 분기). 동기·비동기 모두 적용 |
 | `tests/` | 나이 계산 헬퍼를 순수 함수로 빼서 테스트 |
 
-## ◐ 6b. 프로파일링 (A/B 양쪽, 옵션 on/off) — 기록은 완료, `analyze_run.py`·`fetch_server_profile.sh` 남음
+## ☑ 6b. 프로파일링 (A/B 양쪽, 옵션 on/off)
 
 | 항목 | 내용 |
 |---|---|
@@ -100,7 +100,7 @@
 | 의존성 | A·B 공통 `psutil`, `pynvml`; 분석용 `matplotlib`, `pandas`(A의 `requirements-sim.txt`에 추가, B는 이미 있음) |
 | 테스트 | recorder가 CSV 헤더·행을 올바르게 쓰는지, `analyze_run`이 샘플 CSV로 summary와 plots를 만드는지(matplotlib Agg 백엔드) |
 
-## ☐ 7. pygame UI 개선 (A 전용, RPC 무관)
+## ☑ 7. pygame UI 개선 (A 전용, RPC 무관)
 
 | 항목 | 내용 |
 |---|---|
@@ -110,7 +110,7 @@
 | `module/pygame_ui.py` | 모드 `live-open` 패널 텍스트 추가 |
 | 문서 | navigation-mode.md, vqa-mode.md의 "starts paused" 문구 갱신 |
 
-## ☐ 8. 환경 분리
+## ☑ 8. 환경 분리
 
 | 파일 | 내용 |
 |---|---|

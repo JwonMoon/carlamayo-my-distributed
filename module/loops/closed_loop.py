@@ -26,6 +26,7 @@ from module.loops._common import (
     collect_oom_kwargs,
     derive_pygame_ui_video_path,
     record_local_inference,
+    should_start_paused,
     stack_frame_buffer,
     start_client_profiler,
     trajectory_is_stale,
@@ -85,10 +86,11 @@ def _check_capabilities(adapter, args):
 
 
 def run(adapter, args):
-    _check_capabilities(adapter, args)
+    if not adapter.is_remote:
+        _check_capabilities(adapter, args)
     inference_interval_sec = 1.0
     output_video = resolve_output_video(args, cfg.OUTPUT_VIDEO)
-    start_paused = bool(args.pygame_ui)
+    start_paused = should_start_paused(args)
     pygame_ui_video = derive_pygame_ui_video_path(output_video) if args.pygame_ui else None
 
     print("=" * 60)
@@ -102,7 +104,8 @@ def run(adapter, args):
         print(f"Quantization: {'ON (4-bit)' if args.quantization else 'OFF (full-precision)'}")
     print(f"Execution: {'ASYNC' if args.async_mode else 'SYNC'}")
     print(f"Inference mode: {args.mode}")
-    print(f"Pygame UI: {'ON' if args.pygame_ui else 'OFF'}")
+    print(f"Pygame UI: {'ON' if args.pygame_ui else 'OFF'}"
+          f"{' (starts paused; Ctrl+P to drive)' if start_paused else ''}")
     print(f"CARLA map: {cfg.CARLA_MAP}")
     print("Auto respawn: ON after collisions")
 
@@ -127,6 +130,7 @@ def run(adapter, args):
         model, processor = adapter.load_model()
         print("Connected to inference server!")
         print(adapter.runtime_summary())
+        _check_capabilities(adapter, args)  # capabilities are known only after the handshake
     elif not args.oom_free:
         model, processor = adapter.load_model(
             use_quantization=args.quantization, device_map=args.device_map

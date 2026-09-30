@@ -43,6 +43,7 @@ def test_parsed_defaults_and_overrides():
     assert args.runs_root == "runs"
     assert args.run_tag is None
     assert args.no_run_dir is False
+    assert args.pygame_ui is True and args.start_paused is None
     assert args.inference_server is None
     assert args.image_encoding == "jpeg"
     assert args.jpeg_quality == 95

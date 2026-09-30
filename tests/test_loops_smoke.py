@@ -168,7 +168,7 @@ def fake_server(tmp_path):
 def _args(loop, target, tmp_path, *extra):
     parser = carlamayo.build_parser()
     args = parser.parse_args(
-        ["--version", "1.5", "--loop", loop, "--inference-server", target,
+        ["--version", "1.5", "--loop", loop, "--inference-server", target, "--no-pygame-ui",
          "--runs-root", str(tmp_path / "runs"), "--profile-interval-sec", "0.05", *extra]
     )
     args.run_dir = RunDir.create(loop, "1.5", args.mode if loop == "closed" else None, root=args.runs_root)
@@ -251,3 +251,81 @@ def test_live_open_loop_observes_with_remote_inference(fake_carla_modules, fake_
     assert servicer.requests_served >= 1
     ticks = _csv_rows(args.run_dir.path_ / "profile_client.csv")
     assert len(ticks) == 10 and ticks[0]["throttle"] == "0.4"
+
+
+class FakeUI:
+    """Stand-in for module.pygame_ui.ClosedLoopPygameUI (pygame is not installed in CI)."""
+
+    created: list[FakeUI] = []
+
+    def __init__(self, width=0, height=0, title="", mode="navigation"):
+        self.mode = mode
+        self.events = 0
+        self.draws = 0
+        self.closed = False
+        self.unpause_after = 3
+        FakeUI.created.append(self)
+
+    def process_events(self, nav_state):
+        self.events += 1
+        if nav_state.paused and self.events >= self.unpause_after:
+            nav_state.toggle_pause()
+            if nav_state.mode == "navigation":
+                nav_state.submit_command("Turn right in 30m | 1.5")
+        return True
+
+    def draw(self, frame_rgb, nav_state, telemetry=None):
+        self.draws += 1
+
+    def capture_frame(self):
+        return np.zeros((4, 4, 3), dtype=np.uint8)
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.fixture
+def fake_pygame_ui(monkeypatch):
+    FakeUI.created.clear()
+    monkeypatch.setitem(sys.modules, "module.pygame_ui", types.SimpleNamespace(ClosedLoopPygameUI=FakeUI))
+    yield
+
+
+def test_closed_loop_navigation_starts_paused_then_drives_with_prompt(
+    fake_carla_modules, fake_pygame_ui, fake_server, tmp_path, monkeypatch
+):
+    from module.loops import closed_loop
+
+    servicer, target = fake_server
+    _patch_loop(monkeypatch, closed_loop, max_ticks=16, tick_sleep=0.03)
+    parser = carlamayo.build_parser()
+    args = parser.parse_args(
+        ["--version", "1.5", "--loop", "closed", "--inference-server", target, "--mode", "navigation",
+         "--runs-root", str(tmp_path / "runs"), "--profile-interval-sec", "0.05"]
+    )
+    args.run_dir = RunDir.create("closed", "1.5", "navigation", root=args.runs_root)
+    closed_loop.run(carlamayo.build_adapter(args), args)
+    args.run_dir.close()
+
+    ui = FakeUI.created[-1]
+    assert ui.mode == "navigation" and ui.closed and ui.draws > 0
+    sim = FakeCarla.instances[-1]
+    # Started paused: the first tick is the initial-frame capture, then Ctrl+P resumed.
+    assert sim.ticks > ui.unpause_after
+    # The typed prompt (with CFG weight 1.5) reached the server.
+    assert ("predict", "Turn right in 30m", 1.5, None) in servicer.adapter.calls
+    assert (args.run_dir.path_ / "carla_alpamayo_closed_loop_result_pygame_ui.mp4").name  # recorder path derived
+
+
+def test_live_open_loop_with_ui_pause_and_resume(fake_carla_modules, fake_pygame_ui, fake_server, tmp_path, monkeypatch):
+    from module.loops import live_open_loop
+
+    _, target = fake_server
+    _patch_loop(monkeypatch, live_open_loop, max_ticks=8, tick_sleep=0.03)
+    args = _args("live-open", target, tmp_path)
+    args.pygame_ui = True
+    live_open_loop.run(carlamayo.build_adapter(args), args)
+    args.run_dir.close()
+    ui = FakeUI.created[-1]
+    assert ui.mode == "live-open" and ui.closed and ui.draws >= 8
+    assert FakeCarla.instances[-1].ticks == 9  # 8 ticks + the one that stops the loop

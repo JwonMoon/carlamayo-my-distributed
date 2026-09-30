@@ -115,8 +115,17 @@ def build_parser(preset_loop=None):
     # Closed-loop / live-open options.
     parser.add_argument("--async", dest="async_mode", action="store_true",
                         help="[closed, live-open] Non-blocking background inference worker.")
-    parser.add_argument("--pygame-ui", action="store_true",
-                        help="[closed] Pygame camera UI with prompt input and pause/resume.")
+    parser.add_argument("--pygame-ui", dest="pygame_ui", action="store_true", default=True,
+                        help="[closed, live-open] Pygame camera window with telemetry, prompt "
+                             "input and pause/resume (default: on).")
+    parser.add_argument("--no-pygame-ui", dest="pygame_ui", action="store_false",
+                        help="[closed, live-open] Run headless (video is still recorded).")
+    parser.add_argument("--start-paused", dest="start_paused", action="store_true", default=None,
+                        help="[closed] Start with the simulation paused so the first prompt can "
+                             "be typed. Default: paused only in navigation/vqa mode when no "
+                             "initial prompt was given on the command line.")
+    parser.add_argument("--no-start-paused", dest="start_paused", action="store_false",
+                        help="[closed] Never start paused.")
     parser.add_argument("--mode", choices=("normal", "navigation", "vqa"), default="normal",
                         help="[closed] Inference mode.")
     parser.add_argument("--navigation-text", default="",

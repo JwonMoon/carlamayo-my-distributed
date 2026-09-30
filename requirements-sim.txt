@@ -1,0 +1,18 @@
+# Sim host (CARLA server + carlamayo.py client). No torch, no model packages.
+# python3.10 -m venv venv-sim && pip install -r requirements-sim.txt
+numpy>=1.26
+opencv-python>=4.10
+pygame>=2.6
+scipy>=1.14
+pillow>=12.0
+# CARLA 0.9.16 client. If the PyPI wheel is unavailable for your Python version,
+# install the matching wheel from <CARLA_ROOT>/PythonAPI/carla/dist instead.
+carla==0.9.16
+# Remote inference (gRPC) and profiling.
+grpcio>=1.60
+protobuf>=5.26
+psutil>=5.9
+nvidia-ml-py>=12.0
+# tools/analyze_run.py (summary tables and plots).
+matplotlib>=3.8
+pandas>=2.0

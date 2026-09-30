@@ -14,6 +14,23 @@ def test_trajectory_is_stale_rules():
     assert _common.trajectory_is_stale(0.0, now=100.0, max_age_sec=None) is (100.0 > cfg.TRAJECTORY_MAX_AGE_SEC)
 
 
+def _ns(**kw):
+    base = dict(pygame_ui=True, start_paused=None, mode="normal", navigation_text="", vqa_question="")
+    base.update(kw)
+    return argparse.Namespace(**base)
+
+
+def test_should_start_paused_rules():
+    assert _common.should_start_paused(_ns()) is False                                   # normal
+    assert _common.should_start_paused(_ns(mode="navigation")) is True                   # needs prompt
+    assert _common.should_start_paused(_ns(mode="navigation", navigation_text="Turn")) is False
+    assert _common.should_start_paused(_ns(mode="vqa")) is True
+    assert _common.should_start_paused(_ns(mode="vqa", vqa_question="What?")) is False
+    assert _common.should_start_paused(_ns(mode="vqa", start_paused=False)) is False     # explicit
+    assert _common.should_start_paused(_ns(start_paused=True)) is True                   # explicit
+    assert _common.should_start_paused(_ns(mode="vqa", pygame_ui=False)) is False        # no way to resume
+
+
 def test_trajectory_max_age_from_args_or_config():
     assert _common.trajectory_max_age_sec(argparse.Namespace()) == cfg.TRAJECTORY_MAX_AGE_SEC
     assert _common.trajectory_max_age_sec(argparse.Namespace(trajectory_max_age_sec=2.5)) == 2.5

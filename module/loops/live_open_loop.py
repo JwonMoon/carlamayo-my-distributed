@@ -26,10 +26,12 @@ from module.inference import (
 )
 from module.loops._common import (
     collect_oom_kwargs,
+    derive_pygame_ui_video_path,
     record_local_inference,
     stack_frame_buffer,
     start_client_profiler,
 )
+from module.navigation_control import NavigationControlState
 from module.run_dir import resolve_output_video
 from module.visualization import VideoRecorder, create_live_open_loop_visualization_frame
 from module.vlm_generate_optimization import VlmGenerateTiming
@@ -51,7 +53,8 @@ def _check_capabilities(adapter, args):
 
 
 def run(adapter, args):
-    _check_capabilities(adapter, args)
+    if not adapter.is_remote:
+        _check_capabilities(adapter, args)
     output_video = resolve_output_video(args, cfg.LIVE_OPEN_LOOP_OUTPUT_VIDEO)
     inference_interval_sec = 1.0
     nav_text = args.navigation_text if adapter.supports_navigation else ""
@@ -80,6 +83,8 @@ def run(adapter, args):
         model, processor = adapter.load_model()
         print("Connected to inference server!")
         print(adapter.runtime_summary())
+        _check_capabilities(adapter, args)
+        nav_text = args.navigation_text if adapter.supports_navigation else ""
     elif not args.oom_free:
         model, processor = adapter.load_model(
             use_quantization=args.quantization, device_map=args.device_map
@@ -97,6 +102,28 @@ def run(adapter, args):
     video_recorder = VideoRecorder(output_video, fps=cfg.VIDEO_FPS) if cfg.SAVE_VIDEO else None
     profiler = start_client_profiler(adapter, args)
     vlm_generate_timing = VlmGenerateTiming()
+
+    # Same camera window as closed-loop, minus the prompt input (nothing to steer here).
+    use_ui = bool(getattr(args, "pygame_ui", False))
+    ui_state = NavigationControlState(mode="normal")
+    pygame_ui = None
+    pygame_ui_recorder = None
+    latest_ui_frame = None
+    if use_ui:
+        from module.pygame_ui import ClosedLoopPygameUI
+
+        pygame_ui = ClosedLoopPygameUI(
+            width=cfg.PYGAME_WINDOW_WIDTH, height=cfg.PYGAME_WINDOW_HEIGHT, mode="live-open"
+        )
+        pygame_ui_recorder = VideoRecorder(derive_pygame_ui_video_path(output_video), fps=cfg.VIDEO_FPS)
+        print("Pygame UI: ON (Ctrl+P pauses the simulation, Esc quits)")
+
+    def draw_pygame_ui(frame_rgb, telemetry):
+        if pygame_ui is None:
+            return
+        pygame_ui.draw(frame_rgb, ui_state, telemetry)
+        if pygame_ui_recorder is not None:
+            pygame_ui_recorder.add_frame(pygame_ui.capture_frame())
 
     current_pred_xyz = None
     current_selected_traj_idx = 0
@@ -213,7 +240,16 @@ def run(adapter, args):
         print("-" * 60)
 
         frame_count = 0
+        latest_telemetry = {}
         while True:
+            if pygame_ui is not None:
+                if not pygame_ui.process_events(ui_state):
+                    print("\nPygame UI requested shutdown.")
+                    break
+                if ui_state.paused:
+                    draw_pygame_ui(latest_ui_frame, {**latest_telemetry, "frame": frame_count})
+                    continue
+
             t_tick_start = time.perf_counter()
             carla_if.tick()
             frame_count += 1
@@ -237,6 +273,8 @@ def run(adapter, args):
                 continue
 
             t_captured = time.perf_counter()
+            if len(images) > viz_slot:
+                latest_ui_frame = images[viz_slot]
             frame_buffer.append(images)
             if len(frame_buffer) > cfg.NUM_FRAMES:
                 frame_buffer.pop(0)
@@ -296,13 +334,24 @@ def run(adapter, args):
                     tick_inference_sec = time.time() - model_start
                     _ingest_result(pred_xyz, extra, tick_inference_sec, frame_count)
 
-            if current_pred_xyz is not None and cfg.SAVE_VIDEO:
+            t_ui_start = time.perf_counter()
+            if current_pred_xyz is not None and (cfg.SAVE_VIDEO or pygame_ui is not None):
                 vis_frame = create_live_open_loop_visualization_frame(
                     images[viz_slot], current_pred_xyz, current_selected_traj_idx,
                     frame_count, current_inference_time, current_cot,
                     state["speed"] * 3.6, control,
                 )
-                video_recorder.add_frame(vis_frame)
+                latest_ui_frame = vis_frame
+                if cfg.SAVE_VIDEO and video_recorder is not None:
+                    video_recorder.add_frame(vis_frame)
+            latest_telemetry = {
+                "frame": frame_count,
+                "speed_kmh": state["speed"] * 3.6,
+                "steering": control["steer"],
+                "inference_time": current_inference_time,
+            }
+            draw_pygame_ui(latest_ui_frame, latest_telemetry)
+            ui_sec = time.perf_counter() - t_ui_start
 
             print(
                 f"[Frame {frame_count}] Autopilot -> Speed: {state['speed']*3.6:.1f} km/h, "
@@ -313,7 +362,7 @@ def run(adapter, args):
                 frame=frame_count, sim_time=frame_count * cfg.CONTROL_DT,
                 tick_sec=time.perf_counter() - t_tick_start,
                 camera_capture_sec=t_captured - t_tick_start,
-                inference_sec=tick_inference_sec, control_sec=0.0, ui_sec=0.0,
+                inference_sec=tick_inference_sec, control_sec=0.0, ui_sec=ui_sec,
                 speed_kmh=state["speed"] * 3.6, steer=control["steer"],
                 throttle=control["throttle"], brake=control["brake"],
                 trajectory_age_sec="", pending_inference=pending_inference,
@@ -341,6 +390,10 @@ def run(adapter, args):
                 pass
         if cfg.SAVE_VIDEO and video_recorder:
             video_recorder.save()
+        if pygame_ui_recorder is not None:
+            pygame_ui_recorder.save()
+        if pygame_ui is not None:
+            pygame_ui.close()
         profiler.close()
         carla_if.cleanup()
 

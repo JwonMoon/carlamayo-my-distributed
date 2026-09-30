@@ -20,6 +20,7 @@
 | 2026-09-30 | 로드맵 2·3 구현 후, 같은 조건 + grpcio/grpcio-tools/grpcio-health-checking/protobuf | **104 passed** |
 | 2026-09-30 | 로드맵 4·5 + 프로파일링 모듈 구현 후, + psutil/nvidia-ml-py | **133 passed** |
 | 2026-09-30 | 로드맵 6·6b(루프 연결) + 루프 스모크 테스트 후 | **142 passed** |
+| 2026-09-30 | 로드맵 7·8 + analyze_run 후, + pandas/matplotlib | **149 passed** |
 
 ## 변경 표
 
@@ -62,5 +63,11 @@
 | 2026-09-30 | 프로파일링 | `module/loops/_common.py`, `module/loops/{closed_loop,live_open_loop,open_loop}.py`, `carlamayo.py` | `start_client_profiler`(run 폴더에 `profile_client*.csv`, 원격 어댑터의 `on_rpc` 연결), `record_local_inference`(로컬 어댑터 추론 시간도 같은 CSV에), tick마다 `profiler.tick(...)`(tick/캡처/추론/제어/UI 시간, 속도·조향·궤적 나이). `--profile/--no-profile`, `--profile-interval-sec`. open-loop는 `predictions.npz`도 저장(parity용) | 보고서용 성능 기록 | 6b |
 | 2026-09-30 | 버그 수정 | `module/loops/{closed_loop,live_open_loop}.py` | `viz_slot`/`num_cameras`를 `load_model()` 이후에 읽도록 이동(원격 어댑터는 핸드셰이크 전에는 리그가 비어 있음) | 스모크 테스트가 발견 | 4 |
 | 2026-09-30 | 테스트 | `tests/test_loops_smoke.py`, `tests/test_loop_common.py` | 가짜 `carla` 모듈·가짜 `CARLAInterface`·가짜 PID로 closed-loop(sync/async)·live-open을 원격 어댑터 + 가짜 서버에 붙여 끝까지 실행. 제어 적용, run 폴더·CSV·서버 미러 폴더 확인, stale 가드 정지 확인 | GPU·CARLA 없이 루프 경로 회귀 방지 | 6b |
+| 2026-09-30 | pygame UI | `carlamayo.py`, `module/loops/_common.py`, `module/loops/closed_loop.py` | `--pygame-ui` 기본 ON + `--no-pygame-ui`; `--start-paused/--no-start-paused`; `should_start_paused()`: navigation/vqa 모드에서 초기 프롬프트가 없을 때만 정지 시작, normal은 즉시 주행 | 모든 모드에서 주행 화면, 불필요한 시작 정지 제거, [ADR 0006](adr/0006-pygame-ui-on-sim-host.md) | 7 |
+| 2026-09-30 | pygame UI | `module/loops/live_open_loop.py`, `module/pygame_ui.py` | live-open에 같은 카메라 창 추가(`mode="live-open"` 패널, Ctrl+P 정지, Esc 종료, `*_pygame_ui.mp4` 기록) | 오토파일럿 주행 관찰 | 7 |
+| 2026-09-30 | 버그 수정 | `module/loops/{closed_loop,live_open_loop}.py` | `_check_capabilities`를 원격일 때는 핸드셰이크 뒤에 실행(capability가 서버에서 오므로). 스모크 테스트가 발견 | | 4 |
+| 2026-09-30 | 문서 | `docs/navigation-mode.md`, `docs/vqa-mode.md`, `docs/inference-workflows.md` | "starts paused" 설명을 새 동작으로 갱신 | | 7 |
+| 2026-09-30 | 환경 분리 | `requirements-sim.txt`(신규), `requirements-inference.txt`(신규), `requirements-carla.txt`·`requirements-alpamayo.txt`(호환용 `-r`), `pyproject.toml`(grpcio·protobuf·psutil·nvidia-ml-py, dev에 grpcio-tools), `.github/workflows/ci.yml`(의존성 추가, 스텁 최신 검사), `docs/environment-setup.md` §3 | 호스트별 설치 프로파일 | 8 |
+| 2026-09-30 | 프로파일링 | `tools/analyze_run.py`(신규), `tools/fetch_server_profile.sh`(신규), `tests/test_analyze_run.py` | `summary.md`(run·server 정보, headline, 파일별 count/mean/std/min/p50/p95/max, status 집계)와 `plots/`(inference_time, rtt, server_breakdown, gpu_mem, cpu, net, trajectory_age, speed), `compare` 서브커맨드. B의 CSV를 rsync로 가져오는 스크립트 | 보고서용 산출물 | 6b |
 
-> 위 변경 후 `python -m pytest -q tests`: **142 passed**.
+> 위 변경 후 `python -m pytest -q tests`: **149 passed**.

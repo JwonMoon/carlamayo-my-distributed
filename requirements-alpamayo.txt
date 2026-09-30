@@ -1,6 +1,3 @@
-bitsandbytes>=0.47
-matplotlib>=3.10
-numpy>=1.26
-opencv-python>=4.10
-pillow>=12.0
-scipy>=1.14
+# Kept for compatibility with the upstream docs; the inference-host profile lives in
+# requirements-inference.txt.
+-r requirements-inference.txt

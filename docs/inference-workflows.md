@@ -71,10 +71,12 @@ python carlamayo.py --loop closed --version 2
 > Full-precision Alpamayo 2 needs ~70 GB VRAM. Run the CARLA server on a second
 > GPU (`-graphicsadapter=1`) when one GPU cannot host both.
 
-Optional pygame UI (starts paused so you can enter navigation/VQA text first):
+The pygame camera window is on by default for closed-loop and live-open-loop. It starts
+paused only in navigation/VQA mode when no initial prompt was given (`Ctrl+P` resumes);
+`--start-paused` / `--no-start-paused` override that, `--no-pygame-ui` runs headless:
 
 ```bash
-python carlamayo.py --loop closed --version 2 --mode normal --pygame-ui
+python carlamayo.py --loop closed --version 2 --mode normal --no-pygame-ui
 ```
 
 Mode-specific guides (navigation/VQA require `--version 1.5` or `2`):

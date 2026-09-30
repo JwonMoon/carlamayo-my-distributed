@@ -168,6 +168,15 @@ class ClosedLoopPygameUI:
                 color=(190, 220, 255),
             )
             help_text = "Input: VQA question   Enter=ask, Ctrl+P=pause/resume, Esc=quit"
+        elif nav_state.mode == "normal" and self.mode == "live-open":
+            self._draw_wrapped(
+                "Live open-loop: CARLA autopilot drives; the model's trajectory is overlaid only.",
+                18,
+                y0 + 48,
+                width=105,
+                color=(230, 230, 230),
+            )
+            help_text = "Ctrl+P=pause/resume, Esc=quit"
         else:
             self._draw_wrapped(
                 "Normal closed-loop mode: no text prompt is applied.",

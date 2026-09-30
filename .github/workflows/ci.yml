@@ -26,11 +26,20 @@ jobs:
             numpy \
             scipy \
             pillow \
-            opencv-python-headless
+            opencv-python-headless \
+            grpcio grpcio-tools grpcio-health-checking protobuf \
+            psutil nvidia-ml-py pandas matplotlib
           # The simulator-free tests exercise the version dispatcher, adapters,
-          # shared helpers, dataset loading, and the launcher parser. Adapters
-          # import their Alpamayo model package lazily inside load_model, so no
-          # model submodule needs installing here.
+          # shared helpers, dataset loading, the launcher parser, the gRPC
+          # client/server round trip (with a fake adapter) and the loops against
+          # an in-memory CARLA stand-in. Adapters import their Alpamayo model
+          # package lazily inside load_model, so no model submodule is needed.
+
+      - name: Check generated gRPC stubs are up to date
+        run: |
+          tools/gen_proto.sh
+          git diff --exit-code -- module/remote/alpamayo_inference_pb2.py module/remote/alpamayo_inference_pb2_grpc.py \
+            || (echo "Regenerate stubs with tools/gen_proto.sh and commit them" && exit 1)
 
       - name: Run lightweight tests
         env:
