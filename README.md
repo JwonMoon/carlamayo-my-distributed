@@ -35,6 +35,7 @@
 | [docs/distributed/changes-from-upstream.md](docs/distributed/changes-from-upstream.md) | 업스트림 대비 무엇을 어디에 왜 바꿨는지 |
 | [docs/distributed/alpamayo15-notebooks-guide.md](docs/distributed/alpamayo15-notebooks-guide.md) | 공식 Alpamayo 1.5 노트북 안내와 g6e.xlarge 실행 가능성 |
 | [docs/distributed/diagrams/](docs/distributed/diagrams/) | 위 문서의 다이어그램 SVG |
+| [docs/distributed/demo-overview.pptx](docs/distributed/demo-overview.pptx) · [demo-overview-short.pptx](docs/distributed/demo-overview-short.pptx) | 라이브 데모용 오버뷰 장표 (15장 전체 버전 / 6장 요약 버전). 실측 칸은 검증 후 기입 |
 | [deploy/aws/README.md](deploy/aws/README.md) | AWS 인스턴스·보안그룹·systemd·설치 스크립트 |
 
 분리 실행의 핵심 진입점:
