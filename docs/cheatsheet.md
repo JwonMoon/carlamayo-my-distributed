@@ -91,9 +91,26 @@ ssh ubuntu@172.31.20.213 hostname
 | 순서 | 어디 | 명령 | 확인 |
 |---|---|---|---|
 | 1 | [B] | `cd ~/carlamayo && source a_venv/bin/activate && python alpamayo_server.py --version 1.5 --host 172.31.20.213 --port 50051` (로드맵 5) | 로그에 `warmed_up=True`, `SERVING` |
-| 1' | [B] | `sudo systemctl start alpamayo-server && journalctl -u alpamayo-server -f` (로드맵 9) | 같음 |
+| 1 (대안) | [B] | `sudo systemctl start alpamayo-server && journalctl -u alpamayo-server -f` (로드맵 9) | 같음 |
 | 2 | [A] | `cd ~/carla && ./CarlaUE4.sh -RenderOffScreen -quality-level=Epic` | 별도 터미널(또는 `tmux`)에서 유지 |
 | 3 | [A] | `nvidia-smi` | CARLA가 약 6 GB 사용 |
+
+1과 "1 (대안)"은 **둘 중 하나**만 한다. `systemd`는 Linux의 백그라운드 서비스 관리자로, 서비스로
+등록하면 터미널을 닫아도 서버가 유지되고 재부팅·크래시 시 자동으로 다시 뜨며 로그는
+`journalctl`로 본다. 서비스 파일은 로드맵 9에서 만든다. 그 전에는 1번을 `tmux` 안에서 실행해
+SSH가 끊겨도 유지되게 한다:
+
+```bash
+# [B]
+tmux new -s server            # 세션 열기
+cd ~/carlamayo && source a_venv/bin/activate && python alpamayo_server.py --version 1.5 --host 172.31.20.213 --port 50051
+# Ctrl+B, D 로 빠져나오기 / 다시 보려면 tmux attach -t server
+```
+
+**B에서 할 일은 이것뿐이다.** 아래 §4~6의 open/closed/live-open, navigation, CFG, VQA 어느 것을
+A에서 실행하든 B의 명령은 바뀌지 않는다. 프롬프트·가중치·질문은 A가 보내는 요청에 실려 간다.
+B에서 바꿀 일이 있는 것은 모델 로딩 옵션(`--version`, `--quantization`, `--oom-free`)뿐이며,
+그때만 서버를 재시작한다.
 
 ---
 
@@ -123,7 +140,7 @@ rsync -avz --progress ~/carlamayo/carla_data/ ubuntu@172.31.20.213:~/carlamayo/c
 | 경로 2: A 원격(RPC 검증) | [A] | `python carlamayo.py --loop open --version 1.5 --data-root carla_data --inference-server 172.31.20.213:50051` (로드맵 4) |
 | 경로 2, 무압축 | [A] | 위 명령에 `--image-encoding raw` |
 
-출력: 실행한 인스턴스의 `~/carlamayo/carla_alpamayo_open_loop_result.mp4`
+출력: 실행한 인스턴스의 `~/carlamayo/runs/<run_id>/carla_alpamayo_open_loop_result.mp4` (로드맵 1b 이전에는 `~/carlamayo/` 바로 아래)
 
 ---
 
@@ -143,9 +160,11 @@ cd ~/carlamayo && source venv-sim/bin/activate && export CARLA_ROOT=~/carla
 | navigation + CFG | 위 + `--mode navigation --navigation-weight 1.5` (UI 입력창에 `텍스트 \| 1.5`) |
 | vqa | 위 + `--mode vqa --vqa-question "What is ahead?"` (차량은 정지, 답은 패널·터미널) |
 | 첫 프롬프트를 UI에서 받고 시작 | 위 + `--start-paused` (로드맵 7) |
+| 결과 폴더 이름에 꼬리표 | 위 + `--run-tag cfg15` (로드맵 1b) |
+| 프로파일링 끄기 | 위 + `--no-profile` (로드맵 6b, 기본은 켜짐) |
 
 UI 조작: `Enter` 프롬프트 적용, `Ctrl+P` 일시정지/재개(시뮬 세계 전체 정지), `Esc` 종료.
-출력: `~/carlamayo/carla_alpamayo_closed_loop_result.mp4`, `..._pygame_ui.mp4`
+출력: `~/carlamayo/runs/<run_id>/` 안에 영상 2개, `args.json`, `log.txt`, `profile_client*.csv` (로드맵 1b·6b 이전에는 `~/carlamayo/` 바로 아래 영상만)
 
 분리 구현 전(지금)에 업스트림 그대로 돌려 보려면 A에 모델 환경까지 갖추고 `--inference-server`
 없이 실행한다. A의 24 GB로는 1.5가 빠듯하므로 `--quantization`을 권한다.
@@ -159,17 +178,35 @@ UI 조작: `Enter` 프롬프트 적용, `Ctrl+P` 일시정지/재개(시뮬 세�
 ```bash
 python carlamayo.py --loop live-open --version 1.5 --async --inference-server 172.31.20.213:50051   # (로드맵 4)
 ```
-출력: `~/carlamayo/carla_alpamayo_live_open_loop_result.mp4`
+출력: `~/carlamayo/runs/<run_id>/carla_alpamayo_live_open_loop_result.mp4` (로드맵 1b 이전에는 `~/carlamayo/` 바로 아래)
 
 ---
 
-## 7. 결과 영상 가져오기
+## 7. 프로파일 분석 (로드맵 6b)
+
+실행이 끝나면 A에서 B의 서버 기록을 같은 이름의 폴더로 가져와 분석한다. `<run_id>`는 실행 시
+터미널 첫 줄에 출력되는 폴더명이다(`ls -t runs | head -1`로도 확인).
+
+```bash
+# [A]
+cd ~/carlamayo
+tools/fetch_server_profile.sh <run_id>            # B의 profile_server*.csv → runs/<run_id>/
+python tools/analyze_run.py runs/<run_id>         # → runs/<run_id>/summary.md, plots/*.png
+python tools/analyze_run.py compare runs/<id1> runs/<id2>   # 여러 실행 비교표
+```
+
+B에서 open-loop를 로컬로 돌린 경우(§4 경로 1)는 B에서 바로 `python tools/analyze_run.py runs/<run_id>`.
+
+---
+
+## 7b. 결과 가져오기
 
 로컬 PC에서 실행한다. `<A>`/`<B>`는 SSH로 접속할 때 쓰는 주소(공인 IP 또는 호스트명)다.
 
 ```bash
-scp ubuntu@<A>:~/carlamayo/carla_alpamayo_*_result*.mp4 ./results/     # closed, live-open
-scp ubuntu@<B>:~/carlamayo/carla_alpamayo_open_loop_result.mp4 ./results/   # open-loop 경로 1
+scp -r ubuntu@<A>:~/carlamayo/runs/<run_id> ./results/     # closed, live-open, A 원격 open-loop
+scp -r ubuntu@<B>:~/carlamayo/runs/<run_id> ./results/     # B 로컬 open-loop
+# 로드맵 1b 이전(폴더 없음): scp ubuntu@<A>:~/carlamayo/carla_alpamayo_*_result*.mp4 ./results/
 ```
 
 ---

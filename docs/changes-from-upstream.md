@@ -32,5 +32,6 @@
 | 2026-09-30 | 문서 | `README.md` | 저장소 목적, 문서 색인, 업스트림 동기화 절 추가 | | 1 |
 | 2026-09-30 | 문서(2차) | `docs/diagrams/README.md` | 다이어그램 11개 각각의 출처·의미·읽는 법 | 다이어그램 설명 요청 | 1 |
 | 2026-09-30 | 문서(2차) | `docs/cheatsheet.md`, `docs/distributed-architecture.md`, `docs/distributed-roadmap.md`, `docs/adr/0005`, `docs/architecture-analysis.md` | "무엇이 어디서 도는가" 표와 세 모드 용어표 추가, `carlamayo.py`가 A에서 도는 이유 명시, S3 명령을 `rsync`/`scp`로 교체, 배포·open-loop 다이어그램 갱신 | 치트시트 혼동 해소, SSH 기반 운영에 맞춤 | 1 |
+| 2026-09-30 | 문서(3차) | `docs/distributed-roadmap.md`, `docs/distributed-architecture.md` §9, `docs/adr/0007`, `docs/cheatsheet.md` | 실행 결과 폴더(`runs/<run_id>/`) 규칙과 run_id RPC 전달, 프로파일링(A/B 기록 항목, `tools/analyze_run.py`) 설계를 로드맵 1b·6b로 추가. 치트시트에 systemd 설명과 "B는 서버만 켜 두면 됨" 설명 | 재실행 시 덮어쓰기 방지, 보고서용 성능 기록 요청 | 1 |
 
 > 코드 파일(`*.py`, `requirements-*.txt`, `pyproject.toml`, `.github/`)은 아직 업스트림과 동일하다.

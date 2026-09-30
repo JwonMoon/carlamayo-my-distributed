@@ -22,6 +22,7 @@ GitHub에서 문서를 열면 같은 그림이 바로 보인다. SVG는 Mermaid�
 | `split-deployment.svg` | §2 | 두 인스턴스 배치. A(g5.2xlarge, `172.31.38.219`)에 CARLA 서버 + `carlamayo.py` + DCV, B(g6e.xlarge, `172.31.20.213`)에 `alpamayo_server.py` + 모델. 사이를 잇는 gRPC 한 줄과 파일 복사(scp/rsync) 경로 | 굵은 실선 = gRPC(요청 5~8 MB, 응답 < 10 KB, 약 1 Hz). A 안의 양방향 화살표 = loopback 센서 트래픽(300~600 MB/s). 점선 = 운영자 접속·파일 복사 |
 | `split-seq-closed-loop-async.svg` | §4.1 | 분리 후 closed-loop(async). 시작 시 `GetModelInfo` 핸드셰이크로 카메라 리그를 받고, 워커 스레드가 JPEG 인코딩 후 `Predict`를 보내는 흐름 | 참가자 앞의 "A:"/"B:"가 어느 인스턴스에서 도는지. 핸드셰이크가 `CARLAInterface` 생성보다 먼저인 이유는 리그를 서버에서 받기 때문 |
 | `split-seq-navigation-vqa-rpc.svg` | §4.2 | navigation(CFG) 가중치와 VQA 질문이 RPC 필드로 B에 전달되고 결과가 UI로 돌아오는 경로 | 위 절반이 navigation(`Predict`의 `navigation_weight`), 아래 절반이 VQA(`AnswerQuestion`) |
+| `split-run-id-profiling.svg` | §9.2 | A가 실행 폴더 이름(run_id)을 만들어 모든 RPC 메타에 실어 보내고, B가 같은 이름의 폴더를 만들어 프로파일을 기록한 뒤, 종료 후 rsync로 한 폴더에 합쳐 분석하는 흐름 | `alt` 상자 = B가 처음 보는 run_id일 때만 폴더 생성. 마지막 두 줄이 종료 후 수동 단계 |
 | `split-open-loop-two-paths.svg` | §4.3 | open-loop를 돌리는 두 경로. 경로 1 = 데이터를 B로 복사해 기존 코드 그대로 실행(기본). 경로 2 = A에서 원격 서버로 프레임을 보내며 실행(RPC 검증용) | 두 서브그래프가 각각 한 경로. 경로 2의 결과를 경로 1과 비교하는 것이 parity 테스트 |
 
 ## 다시 만들기

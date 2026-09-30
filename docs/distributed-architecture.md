@@ -79,7 +79,7 @@ gRPC는 평문(TLS 없음)으로 시작한다. 같은 VPC의 사설 IP 사이이
 | RPC | 언제 | 요청 내용 | 응답 내용 | 크기 | 타임아웃 | 실패 시 A의 동작 |
 |---|---|---|---|---|---|---|
 | `GetModelInfo` | 클라이언트 시작 시 1회, 이후 오류 후 재접속마다 | 클라이언트 프로토콜 버전 | 모델 버전(1/1.5/2), 표시 이름, **카메라 리그**(이름·위치·FOV, 순서 포함), `viz_camera_slot`, capability(navigation/vqa/oom_free), 서버 옵션(quantization/oom_free/device_map), `NUM_FRAMES`, `NUM_HISTORY`, `IMG_HEIGHT/WIDTH`, `NUM_TRAJ_SAMPLES`, `warmed_up`, VRAM 사용량, 서버 git sha | < 2 KB | 30 s (연결 대기 포함) | 버전·프레임 수·해상도가 `--version`/`config.py`와 다르면 즉시 종료(`SystemExit`). 서버가 `warmed_up=false`면 준비될 때까지 대기 메시지 출력 |
-| `Predict` | 궤적 추론. closed/live-open은 약 1 Hz, open-loop는 프레임마다 | 이미지 스택(카메라×프레임 = 4×4 또는 7×4, 각각 JPEG 또는 raw RGB8), `history_xyz`(16,3) f32, `history_rot`(16,3,3) f32, `t0_us`, `navigation_text`, `navigation_weight`, `seed`(선택), 메타(frame, prompt_revision, respawn_revision, request_id) | `pred_xyz`(1,1,S,64,3) f32, CoT 텍스트, 타이밍(디코드/전처리/추론 초, VLM generate 횟수), 메타 에코 | 요청 5~8 MB(JPEG q95, 4캠) / 100 MB(raw 4캠) / 174 MB(raw 7캠), 응답 < 10 KB | `--rpc-timeout-sec` 기본 120 s | `DEADLINE_EXCEEDED`/`UNAVAILABLE` → 기존 "Inference error" 경로로 출력, `pending_inference=False`, 1초 후 재시도. 궤적은 최대 나이 초과 시 폐기하고 정지 |
+| `Predict` | 궤적 추론. closed/live-open은 약 1 Hz, open-loop는 프레임마다 | 이미지 스택(카메라×프레임 = 4×4 또는 7×4, 각각 JPEG 또는 raw RGB8), `history_xyz`(16,3) f32, `history_rot`(16,3,3) f32, `t0_us`, `navigation_text`, `navigation_weight`, `seed`(선택), 메타(frame, prompt_revision, respawn_revision, request_id, **run_id**) | `pred_xyz`(1,1,S,64,3) f32, CoT 텍스트, 타이밍(디코드/전처리/추론 초, VLM generate 횟수), 메타 에코 | 요청 5~8 MB(JPEG q95, 4캠) / 100 MB(raw 4캠) / 174 MB(raw 7캠), 응답 < 10 KB | `--rpc-timeout-sec` 기본 120 s | `DEADLINE_EXCEEDED`/`UNAVAILABLE` → 기존 "Inference error" 경로로 출력, `pending_inference=False`, 1초 후 재시도. 궤적은 최대 나이 초과 시 폐기하고 정지 |
 | `AnswerQuestion` | VQA 모드에서 질문이 바뀔 때마다 1회 | 이미지 스택, `history_xyz/rot`, `t0_us`(Alpamayo 2의 `select_task_input`이 전체 입력을 요구하므로 Predict와 같은 형식), `question` | `answer`, `raw_answer`, 타이밍 | 요청 5~8 MB, 응답 < 4 KB | 120 s | 오류 문자열을 UI 패널의 error 줄에 표시 |
 | `grpc.health.v1.Health/Check` | 클라이언트 접속 전, systemd/모니터링 | 없음 | SERVING / NOT_SERVING | 수십 B | 5 s | NOT_SERVING이면 대기 |
 
@@ -105,6 +105,7 @@ gRPC는 평문(TLS 없음)으로 시작한다. 같은 VPC의 사설 IP 사이이
 | open-loop 결과 영상 | B → 운영자 PC (B 로컬 실행 시) 또는 A → 운영자 PC (원격 실행 시) | `scp` | |
 | 서버 로그(`journalctl -u alpamayo-server`), 클라이언트 로그 | 각 호스트에 남김 | 필요 시 `scp` | 지연·오류 분석 |
 | parity 결과(`predictions.npz`, 타이밍 CSV) | B → A 또는 운영자 PC | `scp` | 로드맵 10단계 검증 |
+| 서버 프로파일 `runs/<run_id>/profile_server*.csv` | B → A | `tools/fetch_server_profile.sh <run_id>` (rsync) | A의 같은 이름 폴더에 합쳐 분석 (§9) |
 
 Hugging Face 토큰과 모델 가중치는 **B에만** 존재한다. A는 모델을 내려받을 필요가 없다.
 
@@ -319,6 +320,7 @@ message ImageStack { int32 num_cameras = 1; int32 num_frames = 2; repeated Image
 message ClientMeta {
   string request_id = 1; int64 frame = 2;
   int32 prompt_revision = 3; int32 respawn_revision = 4;
+  string run_id = 5;   // A가 만든 실행 폴더 이름. B는 같은 이름으로 폴더를 만든다 (§9)
 }
 
 message PredictRequest {
@@ -367,3 +369,86 @@ keepalive 20 s. 서버는 요청 처리용 스레드 풀 + 모델 lock.
 | R10 | pygame 창이 DCV 세션 밖(SSH)에서 실행되어 실패 | `DISPLAY` 설정 안내를 cheat sheet에 명시 |
 | R11 | 샘플링 비결정성 | open-loop는 `seed=42`를 요청에 실어 재현. closed-loop는 원래 시드 없음(스모크 테스트만) |
 | R12 | `uv.lock` 재생성이 flash-attn 때문에 CI에서 불가 | B에서 재생성해 커밋 |
+
+---
+
+## 9. 실행 결과 폴더와 프로파일링
+
+### 9.1 실행 결과 폴더 (run 디렉터리)
+
+업스트림은 영상 파일명이 고정(`module/config.py:23-25`)이라 다시 실행하면 이전 결과를 덮어쓴다.
+실행마다 다음 규칙의 폴더를 만들고 산출물을 전부 그 안에 둔다.
+
+```
+runs/<YYYYMMDD-HHMMSS>_<loop>_v<version>_<mode>[_<tag>]/      ← 이 폴더명이 run_id
+├── args.json                     # CLI 인자 전체, git sha, 호스트명, 시작 시각
+├── log.txt                       # 터미널 출력 복제
+├── carla_alpamayo_closed_loop_result.mp4
+├── carla_alpamayo_closed_loop_result_pygame_ui.mp4
+├── profile_client.csv            # A: tick 단위
+├── profile_client_rpc.csv        # A: RPC 단위
+├── profile_client_sys.csv        # A: 1초 단위 시스템 자원
+├── profile_server.csv            # B에서 가져옴: 요청 단위
+├── profile_server_sys.csv        # B에서 가져옴
+├── summary.md                    # analyze_run.py 결과: 통계 표
+└── plots/*.png                   # analyze_run.py 결과: 시계열 그래프
+```
+
+예: `runs/20261001-143022_closed_v1.5_navigation_cfg15/` (`--run-tag cfg15`).
+
+### 9.2 두 호스트의 폴더 이름을 같게 맞추는 방법: run_id 전달
+
+시계를 맞춰 이름을 추측하지 않는다. **A가 폴더명을 만들고 그 문자열을 모든 RPC의
+`ClientMeta.run_id`에 실어 보내면, B는 처음 보는 run_id가 올 때 같은 이름의 폴더를 만든다.**
+실행이 끝나면 A에서 `tools/fetch_server_profile.sh <run_id>`로 B의 CSV를 A의 같은 폴더로
+가져와 한곳에서 분석한다.
+
+```mermaid
+sequenceDiagram
+    participant CL as A: carlamayo.py
+    participant RD as A: runs/<run_id>/
+    participant SV as B: alpamayo_server.py
+    participant RB as B: runs/<run_id>/
+
+    CL->>RD: 시작 시 폴더 생성, args.json·log.txt 기록
+    loop 매 요청
+        CL->>SV: Predict(meta.run_id = "<run_id>", ...)
+        alt 처음 보는 run_id
+            SV->>RB: 폴더 생성, profile_server.csv 열기
+        end
+        SV->>RB: 요청 1행 기록 (decode/prepare/inference, VRAM)
+        SV-->>CL: PredictResponse (timings)
+        CL->>RD: profile_client_rpc.csv 1행 기록 (rtt, bytes, timings)
+    end
+    CL->>RD: 종료 시 영상·CSV 닫기
+    CL->>RB: tools/fetch_server_profile.sh <run_id>  (rsync B→A)
+    CL->>RD: tools/analyze_run.py runs/<run_id> → summary.md, plots/
+```
+
+B에서 open-loop를 로컬로 돌릴 때(경로 1)는 원격 요청이 없으므로 B가 스스로 run_id를 만든다.
+
+### 9.3 기록 항목
+
+`--profile`(기본 on)로 켜고 `--no-profile`로 끈다. 기록은 별도 스레드가 CSV로 쓰므로 tick
+경로를 막지 않는다.
+
+| 파일 | 어디 | 한 행 | 열 |
+|---|---|---|---|
+| `profile_client.csv` | A | tick | frame, sim_time, wall_time, tick_sec, camera_capture_sec, control_sec, ui_sec, speed_kmh, steer, trajectory_age_sec, pending_inference |
+| `profile_client_rpc.csv` | A | RPC | request_id, frame_submitted, encode_sec, request_bytes, response_bytes, rtt_sec, server_total_sec, inference_sec, status |
+| `profile_client_sys.csv` | A | 1 s | cpu_percent, rss_mb, gpu_util, gpu_mem_used_mb(CARLA 포함), net_sent_bps, net_recv_bps |
+| `profile_server.csv` | B | 요청 | request_id, run_id, recv_wall_time, decode_sec, prepare_sec, inference_sec, vlm_generate_sec, total_sec, request_bytes, gpu_mem_allocated_mb, gpu_mem_peak_mb, gpu_util |
+| `profile_server_sys.csv` | B | 1 s | A와 같음 |
+
+라이브러리: `psutil`(CPU/RAM/네트워크), `pynvml`(GPU), 기존 `module/vlm_generate_optimization.py`의
+`VlmGenerateTiming`(VLM 생성 시간).
+
+### 9.4 분석 산출물
+
+`python tools/analyze_run.py runs/<run_id>`:
+
+- `summary.md`: 항목별 count / mean / std / min / p50 / p95 / max 표. RPC 왕복 시간을 서버 측
+  총 시간과 나란히 두어 네트워크+인코딩 오버헤드를 바로 읽을 수 있게 한다.
+- `plots/`: `inference_time.png`, `rtt.png`(클라이언트 왕복 vs 서버 처리), `gpu_mem.png`(A·B),
+  `cpu.png`, `net.png`(A 송신 = 요청 대역폭), `trajectory_age.png`.
+- `python tools/analyze_run.py compare runs/<id1> runs/<id2> ...`: 여러 run의 요약을 한 표로.

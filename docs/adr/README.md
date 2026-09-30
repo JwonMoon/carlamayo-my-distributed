@@ -12,6 +12,7 @@
 | [0004](0004-upstream-import-preserve-history.md) | 업스트림은 git 히스토리를 보존해 가져온다 | 채택 |
 | [0005](0005-open-loop-in-split-env.md) | open-loop는 B 로컬 재생과 A 원격 재생 둘 다 지원 | 채택 |
 | [0006](0006-pygame-ui-on-sim-host.md) | pygame UI는 A에서 DCV로 표시, 기본 ON, VQA는 정지형 유지 | 채택 |
+| [0007](0007-run-dir-and-run-id.md) | 실행마다 결과 폴더를 만들고 run_id를 RPC로 전달해 두 호스트 폴더명을 맞춘다 | 채택 |
 
 ## 템플릿
 

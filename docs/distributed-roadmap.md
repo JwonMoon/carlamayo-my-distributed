@@ -21,6 +21,20 @@
 | `tests/test_inference_utils.py` | numpy 입력 케이스 추가 |
 | 검증 | `python -c "import module.loops.closed_loop"`가 torch 없는 venv에서 성공(단, `carla` 필요). CI 통과 |
 
+## ☐ 1b. 실행 결과 폴더 (run 디렉터리) — 원격과 무관, 지금 코드에도 적용
+
+지금은 영상 파일명이 고정(`module/config.py:23-25`)이라 재실행 시 덮어쓴다. 실행마다 폴더를 만든다.
+
+| 항목 | 내용 |
+|---|---|
+| 폴더 규칙 | `runs/<YYYYMMDD-HHMMSS>_<loop>_v<version>_<mode>[_<tag>]/` 예: `runs/20261001-143022_closed_v1.5_navigation_cfg15/`. 폴더명이 곧 **run_id** |
+| 플래그 | `--run-tag <문자열>`(접미사), `--runs-root runs`(루트). `.gitignore`에 `runs/` 추가 |
+| 내용 | `args.json`(전체 CLI 인자 + git sha + 호스트명 + 시작 시각), `carla_alpamayo_*_result.mp4`(기존 파일명 그대로, 이 폴더 안에), `*_pygame_ui.mp4`, `log.txt`(stdout 복제), 이후 프로파일 CSV·`summary.md`·`plots/` |
+| `module/run_dir.py` | 신규. `RunDir.create(loop, version, mode, tag, root)`, `.run_id`, `.path(name)`, `.write_args(args)`, `TeeStdout`(stdout을 `log.txt`에도 복제) |
+| 루프 수정 | `closed_loop.py:89`, `live_open_loop.py:53`, `open_loop.py:49`의 `output_video` 결정을 `run_dir.path(cfg.*_OUTPUT_VIDEO)`로. `--output-video`를 주면 그 이름을 run 폴더 안에 둠. `derive_pygame_ui_video_path`는 그대로(같은 폴더에 생김) |
+| 원격 연동 | 4단계에서 `ClientMeta.run_id`로 서버에 전달(6b 참조). B 로컬 open-loop는 B가 스스로 run_id 생성 |
+| 테스트 | 폴더명 규칙, tag 유무, `args.json` 내용, 두 번 만들면 다른 폴더 |
+
 ## ☐ 2. proto + codec
 
 | 항목 | 내용 |
@@ -44,6 +58,7 @@
 |---|---|
 | `module/remote/client.py` | `RemoteAlpamayoAdapter(expected_version, target, image_encoding, jpeg_quality, rpc_timeout_sec, connect_timeout_sec)`. `load_model()`: 채널 생성 → `channel_ready_future` → `GetModelInfo` → 버전·프로토콜·`NUM_FRAMES`·`NUM_HISTORY`·`IMG_*`·`NUM_TRAJ_SAMPLES` 검증 → 리그/capability/서버 옵션 채움 → `(None, None)` 반환. `prepare_model_input()`: 인코딩까지 수행(워커 스레드에서 돌게). `run_inference()`: `Predict` 호출, numpy 반환, `extra={"cot","timings"}`. `run_vqa()`, `extract_*`. `grpc.RpcError` → `RemoteInferenceError`. `runtime_summary()`는 서버 VRAM·옵션 문자열 |
 | `module/adapters/__init__.py` | 버전 별칭 정규화를 `normalize_version()`으로 노출(클라이언트 검증에 재사용) |
+| `ClientMeta.run_id` | 1b의 run_id를 모든 `Predict`/`AnswerQuestion` 요청에 실어 보냄 |
 | `carlamayo.py` | `--inference-server HOST:PORT`, `--image-encoding {jpeg,raw}`(기본 jpeg), `--jpeg-quality 95`, `--rpc-timeout-sec 120`, `--rpc-connect-timeout-sec 30`. `build_adapter(args)`: 원격이면 `RemoteAlpamayoAdapter`, 아니면 `get_adapter`. 원격일 때 `--quantization/--oom-free*/--device-map≠auto/--cuda-linalg-library≠magma`는 `parser.error`("서버 플래그입니다") |
 | `module/loops/open_loop.py` | `_load_model`을 `camera_order` 계산(50~51행)보다 앞으로 이동 |
 | `module/loops/closed_loop.py`, `live_open_loop.py` | 96~99행 등 quantization/oom 출력은 `adapter.quantization`·`adapter.oom_free` 속성에서 읽음. `_check_capabilities`는 그대로(capability가 ModelInfo에서 옴) |
@@ -58,6 +73,7 @@
 | 시작 순서 | `get_adapter` → `configure_cuda_linalg_library` → `load_model`(OOM kwargs는 `_common.collect_oom_kwargs` 재사용) → 워밍업 1회(0 이미지 + 0 이력으로 `Predict` 경로 실행, flash-attn/cuBLAS 커널 컴파일) → `warmed_up=True`, health SERVING → serve |
 | 로그 | 요청마다 `request_id`, frame, revisions, 디코드/전처리/추론 시간, VRAM |
 | CFG/VQA | `Predict`의 `navigation_weight`를 그대로 `run_inference`에, `AnswerQuestion`은 `run_vqa`에 |
+| run_id별 폴더 | 처음 보는 `run_id`가 오면 `runs/<run_id>/`를 만들고 6b의 `profile_server.csv`를 그 안에 씀 |
 
 ## ☐ 6. stale trajectory 안전장치
 
@@ -66,6 +82,23 @@
 | `module/config.py` | `TRAJECTORY_MAX_AGE_SEC = 3.0` |
 | `module/loops/closed_loop.py` | PID 적용 직전 `time.time() - current_trajectory_ts > cfg.TRAJECTORY_MAX_AGE_SEC`면 `current_trajectory = None`(→ 기존 정지 분기). 동기·비동기 모두 적용 |
 | `tests/` | 나이 계산 헬퍼를 순수 함수로 빼서 테스트 |
+
+## ☐ 6b. 프로파일링 (A/B 양쪽, 옵션 on/off)
+
+| 항목 | 내용 |
+|---|---|
+| 플래그 | `--profile`/`--no-profile`(기본 on, 비용 작음), `--profile-interval-sec 1.0`(시스템 자원 샘플 주기). 서버도 같은 플래그 |
+| `module/profiling.py` | 신규. `ProfileRecorder(run_dir, name)`: 행 dict를 큐에 넣고 별도 스레드가 CSV로 씀(tick 경로 비차단). `SystemSampler(interval)`: `psutil`로 CPU %, RSS, 네트워크 송수신 바이트/초, `pynvml`로 GPU 사용률·메모리(전체, CARLA 포함)를 주기적으로 기록 |
+| A 기록 `profile_client.csv` (행 = tick) | frame, sim_time, wall_time, tick_sec, camera_capture_sec, control_sec, ui_sec, speed_kmh, steer, trajectory_age_sec, pending_inference |
+| A 기록 `profile_client_rpc.csv` (행 = RPC) | request_id, frame_submitted, encode_sec, request_bytes, response_bytes, rtt_sec(클라이언트 측 왕복), server_total_sec·inference_sec(응답 `Timings`), status(OK/오류 코드). 원격 어댑터가 기록. 로컬 어댑터일 때는 encode/bytes 없이 inference_sec만 |
+| A 기록 `profile_client_sys.csv` (행 = 1 s) | cpu_percent, rss_mb, gpu_util, gpu_mem_used_mb, net_sent_bps, net_recv_bps |
+| B 기록 `profile_server.csv` (행 = 요청) | request_id, run_id, recv_wall_time, decode_sec, prepare_sec, inference_sec, vlm_generate_sec(`VlmGenerateTiming` 재사용), total_sec, request_bytes, gpu_mem_allocated_mb, gpu_mem_peak_mb(요청마다 `torch.cuda.reset_peak_memory_stats` 후 `max_memory_allocated`), gpu_util |
+| B 기록 `profile_server_sys.csv` | A와 같은 열 |
+| 루프 훅 | `closed_loop.py`/`live_open_loop.py`의 tick 시작·카메라 수집·제어·UI 직후에 `perf_counter` 차이를 recorder에 넣는 6~8줄. `open_loop.py`는 프레임당 한 행 |
+| `tools/analyze_run.py <run_dir>` | CSV를 읽어 항목별 count/mean/std/min/p50/p95/max 표를 `summary.md`(Markdown 표)로, 시계열 그래프를 `plots/`에 PNG로(inference_time, rtt, gpu_mem, cpu, net, trajectory_age; 서버 CSV가 있으면 같은 축에 겹침). 서브커맨드 `compare run1 run2 ...`로 여러 run 비교표 |
+| `tools/fetch_server_profile.sh <run_id>` | `rsync ubuntu@172.31.20.213:~/carlamayo/runs/<run_id>/profile_server*.csv runs/<run_id>/` (A에서 실행) |
+| 의존성 | A·B 공통 `psutil`, `pynvml`; 분석용 `matplotlib`, `pandas`(A의 `requirements-sim.txt`에 추가, B는 이미 있음) |
+| 테스트 | recorder가 CSV 헤더·행을 올바르게 쓰는지, `analyze_run`이 샘플 CSV로 summary와 plots를 만드는지(matplotlib Agg 백엔드) |
 
 ## ☐ 7. pygame UI 개선 (A 전용, RPC 무관)
 
@@ -81,9 +114,9 @@
 
 | 파일 | 내용 |
 |---|---|
-| `requirements-sim.txt` | numpy, opencv-python, pygame, scipy, pillow, carla==0.9.16, grpcio, protobuf |
+| `requirements-sim.txt` | numpy, opencv-python, pygame, scipy, pillow, carla==0.9.16, grpcio, protobuf, psutil, pynvml, matplotlib, pandas |
 | `requirements-carla.txt` | 호환용: `-r requirements-sim.txt` 한 줄 |
-| `requirements-inference.txt` | 기존 `requirements-alpamayo.txt` 내용 + grpcio, grpcio-health-checking, protobuf |
+| `requirements-inference.txt` | 기존 `requirements-alpamayo.txt` 내용 + grpcio, grpcio-health-checking, protobuf, psutil, pynvml |
 | `requirements-alpamayo.txt` | 호환용: `-r requirements-inference.txt` |
 | `pyproject.toml` | dependencies에 grpcio, protobuf; dev에 grpcio-tools. `uv.lock`은 B에서 재생성(flash-attn 때문에 CI 불가) |
 | `.github/workflows/ci.yml` | grpcio, grpcio-tools, protobuf 설치. 스텁 재생성 후 `git diff --exit-code module/remote/*_pb2*.py` |
@@ -106,4 +139,4 @@
 | `tools/compare_predictions.py` | 프레임별 max abs diff, minADE 차이 표. raw는 ~1e-6 이내 기대, JPEG 차이는 기록 |
 | closed-loop 스모크 | sync/async × normal/navigation(weight 1.0, 1.5)/vqa 각 2분 주행, 충돌·리스폰 동작, 서버 재시작 중 클라이언트 생존, 궤적 나이 초과 시 정지 |
 | live-open 스모크 | async, UI 표시 |
-| 성능 CSV | 요청당 인코딩/전송/디코드/추론/총 시간, 요청 크기, A CPU 사용률, B VRAM. `docs/distributed-architecture.md`에 "실측" 절 추가 |
+| 프로파일 확인 | 각 스모크 run의 `runs/<run_id>/`에 A·B CSV가 모두 있고 `analyze_run.py`가 `summary.md`·`plots/`를 만드는지. 요청당 인코딩/전송/디코드/추론/총 시간, 요청 크기, A CPU, B VRAM 요약을 `docs/distributed-architecture.md`에 "실측" 절로 추가 |
