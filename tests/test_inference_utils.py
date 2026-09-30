@@ -20,6 +20,14 @@ def test_extract_trajectory_samples_squeezes_batch_axes_and_keeps_xyz_only():
     np.testing.assert_allclose(samples, pred_xyz.numpy()[0, 0, :, :, :3])
 
 
+def test_extract_trajectory_samples_accepts_numpy_input():
+    pred_xyz = np.arange(2 * 3 * 4, dtype=np.float32).reshape(1, 1, 2, 3, 4)
+    samples = inference.extract_trajectory_samples(pred_xyz)
+    assert samples.shape == (2, 3, 3)
+    assert samples.dtype == np.float32
+    np.testing.assert_allclose(samples, pred_xyz[0, 0, :, :, :3])
+
+
 def test_extract_trajectory_samples_rejects_degenerate_shapes():
     with pytest.raises(ValueError):
         inference.extract_trajectory_samples(torch.zeros(2, 3, 2))

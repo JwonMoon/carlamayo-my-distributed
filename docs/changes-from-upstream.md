@@ -16,6 +16,7 @@
 | 날짜 | 조건 | 결과 |
 |---|---|---|
 | 2026-09-30 | 가져온 직후, CI와 같은 의존성(CPU torch, numpy, scipy, pillow, opencv-headless, pytest), `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests` | **55 passed** |
+| 2026-09-30 | 로드맵 1·1b 구현 후, 같은 조건 | **79 passed** |
 
 ## 변경 표
 
@@ -33,5 +34,16 @@
 | 2026-09-30 | 문서(2차) | `docs/diagrams/README.md` | 다이어그램 11개 각각의 출처·의미·읽는 법 | 다이어그램 설명 요청 | 1 |
 | 2026-09-30 | 문서(2차) | `docs/cheatsheet.md`, `docs/distributed-architecture.md`, `docs/distributed-roadmap.md`, `docs/adr/0005`, `docs/architecture-analysis.md` | "무엇이 어디서 도는가" 표와 세 모드 용어표 추가, `carlamayo.py`가 A에서 도는 이유 명시, S3 명령을 `rsync`/`scp`로 교체, 배포·open-loop 다이어그램 갱신 | 치트시트 혼동 해소, SSH 기반 운영에 맞춤 | 1 |
 | 2026-09-30 | 문서(3차) | `docs/distributed-roadmap.md`, `docs/distributed-architecture.md` §9, `docs/adr/0007`, `docs/cheatsheet.md` | 실행 결과 폴더(`runs/<run_id>/`) 규칙과 run_id RPC 전달, 프로파일링(A/B 기록 항목, `tools/analyze_run.py`) 설계를 로드맵 1b·6b로 추가. 치트시트에 systemd 설명과 "B는 서버만 켜 두면 됨" 설명 | 재실행 시 덮어쓰기 방지, 보고서용 성능 기록 요청 | 1 |
+| 2026-09-30 | torch 디커플링 | `module/inference.py` | 최상단 `import torch` 제거(linalg 설정 안에서 지연 import). `extract_trajectory_samples`가 numpy 입력도 받음 | A(sim host)에 torch 없이 루프 실행. 원격 어댑터는 numpy를 반환 | 1 |
+| 2026-09-30 | torch 디커플링 | `module/visualization.py` | `import torch` 제거, `isinstance(..., torch.Tensor)`를 `hasattr(x, "detach")`로 | 같음 | 1 |
+| 2026-09-30 | torch 디커플링 | `module/adapters/base.py` | `is_remote`, `quantization`, `oom_free` 속성, `runtime_summary()`(VRAM 문자열, torch 없으면 빈 문자열), `seed_everything()`, `run_inference/run_vqa(seed=)` 인자 | 루프가 torch를 직접 부르지 않고 어댑터에 위임. 시드는 open-loop 재현·parity용 | 1 |
+| 2026-09-30 | torch 디커플링 | `module/adapters/alpamayo_{r1,1_5,2}.py` | `seed=` 인자 받아 샘플링 전 `seed_everything`, `load_model`에서 `quantization/oom_free` 기록 | 같음 | 1 |
+| 2026-09-30 | torch 디커플링 | `module/loops/{closed_loop,live_open_loop,open_loop}.py` | `import torch` 제거. VRAM 출력 → `adapter.runtime_summary()`. open-loop의 `torch.cuda.manual_seed_all(42)` → `run_inference(seed=cfg.OPEN_LOOP_SEED)` | 같음 | 1 |
+| 2026-09-30 | torch 디커플링 | `module/config.py` | `OPEN_LOOP_SEED = 42` | 시드 상수화 | 1 |
+| 2026-09-30 | torch 디커플링 | `tests/test_torch_free_imports.py`(신규), `tests/test_inference_utils.py` | `sys.modules["torch"]=None`으로 torch 없는 환경을 흉내 내 A 쪽 모듈 14개가 import되는지 검사. numpy 입력 케이스 | 회귀 방지 | 1 |
+| 2026-09-30 | 실행 결과 폴더 | `module/run_dir.py`(신규) | `build_run_id`, `RunDir.create/path/write_args/start_log/close`, `TeeStdout`, `resolve_output_video`. 폴더명 `<YYYYMMDD-HHMMSS>_<loop>_v<version>[_<mode>][_<tag>]`, 중복 시 `-2` | 재실행 시 덮어쓰기 방지, [ADR 0007](adr/0007-run-dir-and-run-id.md) | 1b |
+| 2026-09-30 | 실행 결과 폴더 | `carlamayo.py` | `--runs-root`, `--run-tag`, `--no-run-dir` 플래그. `main()`이 폴더 생성 → `log.txt` 시작 → `args.json` 기록 → `args.run_dir` 전달 → 종료 시 닫기. 첫 줄에 `Run folder: ... (run_id=...)` 출력 | 같음 | 1b |
+| 2026-09-30 | 실행 결과 폴더 | `module/loops/{closed_loop,live_open_loop,open_loop}.py` | `output_video`를 `resolve_output_video(args, cfg.*_OUTPUT_VIDEO)`로. run 폴더가 없으면(직접 `run()` 호출) 업스트림과 동일하게 현재 디렉터리 | 영상이 run 폴더에 저장 | 1b |
+| 2026-09-30 | 실행 결과 폴더 | `.gitignore`, `tests/test_run_dir.py`(신규), `tests/test_carlamayo_launcher.py` | `runs/` 무시. 폴더명·유일성·args.json·로그·경로 해석 테스트, 런처가 run 폴더를 만들어 루프에 넘기는지 테스트 | | 1b |
 
-> 코드 파일(`*.py`, `requirements-*.txt`, `pyproject.toml`, `.github/`)은 아직 업스트림과 동일하다.
+> 위 변경 후 `python -m pytest -q tests`: **79 passed** (업스트림 55 + 신규 24).

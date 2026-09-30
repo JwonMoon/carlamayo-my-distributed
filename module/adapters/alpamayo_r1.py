@@ -30,6 +30,7 @@ class AlpamayoR1Adapter(AlpamayoAdapter):
     def load_model(
         self, use_quantization=False, device_map="auto", oom_free=False, oom_kwargs=None,
     ):
+        self.quantization = bool(use_quantization)
         if oom_free:
             raise ValueError("OOM-free demand layering is not supported for Alpamayo 1 (R1).")
 
@@ -78,8 +79,9 @@ class AlpamayoR1Adapter(AlpamayoAdapter):
 
     def run_inference(
         self, model, processor, data,
-        navigation_text=None, navigation_weight=1.0, vlm_generate_timing=None,
+        navigation_text=None, navigation_weight=1.0, vlm_generate_timing=None, seed=None,
     ):
+        self.seed_everything(seed)
         if navigation_text:
             print("Alpamayo 1 (R1) has no navigation conditioning; ignoring navigation text.")
 

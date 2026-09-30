@@ -42,6 +42,8 @@ class Alpamayo15Adapter(AlpamayoAdapter):
 
         patch_legacy_hydra_targets()
 
+        self.quantization = bool(use_quantization)
+        self.oom_free = bool(oom_free)
         if oom_free:
             from module.oom_offload import load_offloaded_model
 
@@ -97,9 +99,11 @@ class Alpamayo15Adapter(AlpamayoAdapter):
 
     def run_inference(
         self, model, processor, data,
-        navigation_text=None, navigation_weight=1.0, vlm_generate_timing=None,
+        navigation_text=None, navigation_weight=1.0, vlm_generate_timing=None, seed=None,
     ):
         from alpamayo1_5 import helper
+
+        self.seed_everything(seed)
 
         from module.vlm_generate_optimization import optimized_vlm_generate
         from module.config import NUM_TRAJ_SAMPLES
@@ -163,9 +167,10 @@ class Alpamayo15Adapter(AlpamayoAdapter):
             )
         return pred_xyz, extra
 
-    def run_vqa(self, model, processor, data, question):
+    def run_vqa(self, model, processor, data, question, seed=None):
         from alpamayo1_5 import helper
 
+        self.seed_everything(seed)
         question = question.strip()
         if not question:
             raise ValueError("question must not be empty")

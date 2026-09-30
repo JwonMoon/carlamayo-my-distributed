@@ -6,7 +6,6 @@ Alpamayo version is loaded, plus a re-export of the ``--version`` dispatcher.
 """
 
 import numpy as np
-import torch
 
 from module.adapters import SUPPORTED_VERSIONS, get_adapter
 
@@ -27,6 +26,9 @@ def configure_cuda_linalg_library(library: str | None):
         raise ValueError(
             f"Unsupported CUDA linalg library '{library}'. Expected one of: {supported}."
         )
+    # torch is imported lazily so the CARLA-side client can run without it.
+    import torch
+
     if not torch.cuda.is_available():
         return None
 
@@ -37,8 +39,15 @@ def configure_cuda_linalg_library(library: str | None):
 
 
 def extract_trajectory_samples(pred_xyz):
-    """Squeeze batch axes and keep xyz, returning ``(num_samples, horizon, 3)``."""
-    arr = pred_xyz.detach().cpu().numpy()
+    """Squeeze batch axes and keep xyz, returning ``(num_samples, horizon, 3)``.
+
+    Accepts a torch tensor (local adapters) or an array-like (remote adapters return
+    numpy), so this module never needs to import torch itself.
+    """
+    if hasattr(pred_xyz, "detach"):
+        arr = pred_xyz.detach().cpu().numpy()
+    else:
+        arr = np.asarray(pred_xyz, dtype=np.float32)
     while arr.ndim > 3:
         arr = arr[0]
     if arr.ndim != 3:

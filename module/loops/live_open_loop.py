@@ -17,8 +17,6 @@ import threading
 import time
 import traceback
 
-import torch
-
 from module import config as cfg
 from module.carla_interface import CARLAInterface
 from module.inference import (
@@ -27,6 +25,7 @@ from module.inference import (
     select_trajectory_by_prev_similarity,
 )
 from module.loops._common import collect_oom_kwargs, stack_frame_buffer
+from module.run_dir import resolve_output_video
 from module.visualization import VideoRecorder, create_live_open_loop_visualization_frame
 from module.vlm_generate_optimization import VlmGenerateTiming
 
@@ -50,7 +49,7 @@ def run(adapter, args):
     _check_capabilities(adapter, args)
     viz_slot = adapter.viz_camera_slot
     num_cameras = adapter.num_cameras
-    output_video = args.output_video or cfg.LIVE_OPEN_LOOP_OUTPUT_VIDEO
+    output_video = resolve_output_video(args, cfg.LIVE_OPEN_LOOP_OUTPUT_VIDEO)
     inference_interval_sec = 1.0
     nav_text = args.navigation_text if adapter.supports_navigation else ""
 
@@ -77,7 +76,7 @@ def run(adapter, args):
             use_quantization=args.quantization, device_map=args.device_map
         )
         print("Model loaded!")
-        print(f"VRAM: {torch.cuda.memory_allocated() / 1024**3:.1f} GB allocated")
+        print(adapter.runtime_summary())
     else:
         print("OOM-free mode: Alpamayo loads after CARLA is fully spawned.")
 

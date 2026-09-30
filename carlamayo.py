@@ -19,6 +19,7 @@ module with a preset loop for backward compatibility.
 import argparse
 
 from module.adapters import SUPPORTED_VERSIONS, get_adapter
+from module.run_dir import DEFAULT_RUNS_ROOT, RunDir
 
 LOOPS = ("open", "closed", "live-open")
 
@@ -63,7 +64,15 @@ def build_parser(preset_loop=None):
     parser.add_argument("--cuda-linalg-library", choices=("default", "cusolver", "magma"),
                         default="magma", help="Preferred CUDA linalg backend.")
     parser.add_argument("--output-video", default=None,
-                        help="Output video path. Defaults to a per-loop name.")
+                        help="Output video name. A bare name is written inside the run folder.")
+
+    # Per-run output folder: runs/<timestamp>_<loop>_v<version>[_<mode>][_<tag>]/
+    parser.add_argument("--runs-root", default=DEFAULT_RUNS_ROOT,
+                        help="Parent directory for per-run output folders.")
+    parser.add_argument("--run-tag", default=None,
+                        help="Optional suffix appended to the run folder name.")
+    parser.add_argument("--no-run-dir", action="store_true",
+                        help="Write outputs to the current directory like upstream did.")
 
     # CARLA connection (override to run alongside other simulators on one host).
     parser.add_argument("--carla-host", default="localhost", help="CARLA server host.")
@@ -99,21 +108,44 @@ def main(argv=None, preset_loop=None):
     loop = preset_loop or args.loop
 
     adapter = get_adapter(args.version)
+    args.run_dir = None if args.no_run_dir else create_run_dir(args, loop)
 
-    if loop == "open":
-        from module.loops import open_loop
+    try:
+        if loop == "open":
+            from module.loops import open_loop
 
-        open_loop.run(adapter, args)
-    elif loop == "closed":
-        from module.loops import closed_loop
+            open_loop.run(adapter, args)
+        elif loop == "closed":
+            from module.loops import closed_loop
 
-        closed_loop.run(adapter, args)
-    elif loop == "live-open":
-        from module.loops import live_open_loop
+            closed_loop.run(adapter, args)
+        elif loop == "live-open":
+            from module.loops import live_open_loop
 
-        live_open_loop.run(adapter, args)
-    else:  # pragma: no cover - argparse restricts choices
-        parser.error(f"Unknown loop {loop!r}")
+            live_open_loop.run(adapter, args)
+        else:  # pragma: no cover - argparse restricts choices
+            parser.error(f"Unknown loop {loop!r}")
+    finally:
+        if args.run_dir is not None:
+            args.run_dir.close()
+
+
+def create_run_dir(args, loop):
+    """Create the per-run output folder, start the stdout log and save the arguments."""
+    mode = args.mode if loop == "closed" else None
+    run_dir = RunDir.create(
+        loop=loop, version=adapter_version_token(args.version), mode=mode,
+        tag=args.run_tag, root=args.runs_root,
+    )
+    run_dir.start_log()
+    run_dir.write_args(args, extra={"loop": loop})
+    print(f"Run folder: {run_dir}  (run_id={run_dir.run_id})")
+    return run_dir
+
+
+def adapter_version_token(version):
+    """Normalize a --version alias to its canonical token for the folder name."""
+    return get_adapter(version).version
 
 
 if __name__ == "__main__":

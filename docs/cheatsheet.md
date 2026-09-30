@@ -160,7 +160,8 @@ cd ~/carlamayo && source venv-sim/bin/activate && export CARLA_ROOT=~/carla
 | navigation + CFG | 위 + `--mode navigation --navigation-weight 1.5` (UI 입력창에 `텍스트 \| 1.5`) |
 | vqa | 위 + `--mode vqa --vqa-question "What is ahead?"` (차량은 정지, 답은 패널·터미널) |
 | 첫 프롬프트를 UI에서 받고 시작 | 위 + `--start-paused` (로드맵 7) |
-| 결과 폴더 이름에 꼬리표 | 위 + `--run-tag cfg15` (로드맵 1b) |
+| 결과 폴더 이름에 꼬리표 | 위 + `--run-tag cfg15` |
+| 결과 폴더 없이 업스트림처럼 현재 폴더에 저장 | 위 + `--no-run-dir` |
 | 프로파일링 끄기 | 위 + `--no-profile` (로드맵 6b, 기본은 켜짐) |
 
 UI 조작: `Enter` 프롬프트 적용, `Ctrl+P` 일시정지/재개(시뮬 세계 전체 정지), `Esc` 종료.

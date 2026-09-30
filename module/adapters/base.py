@@ -37,9 +37,38 @@ class AlpamayoAdapter(ABC):
     supports_vqa: bool = False
     supports_oom_free: bool = False
 
+    #: True for adapters that forward inference to another host; the loops then
+    #: skip local-GPU-only work (VRAM prints, CUDA linalg configuration).
+    is_remote: bool = False
+    #: How the served model was loaded. Local adapters set these in ``load_model``;
+    #: remote adapters copy them from the server's model info.
+    quantization: bool = False
+    oom_free: bool = False
+
     @property
     def num_cameras(self) -> int:
         return len(self.source_camera_configs)
+
+    def runtime_summary(self) -> str:
+        """One-line description of where the model runs and how much VRAM it uses."""
+        try:
+            import torch
+        except ImportError:  # pragma: no cover - CARLA-side env without torch
+            return ""
+        if not torch.cuda.is_available():
+            return ""
+        return f"VRAM: {torch.cuda.memory_allocated() / 1024**3:.1f} GB allocated"
+
+    @staticmethod
+    def seed_everything(seed: int | None) -> None:
+        """Reseed torch RNGs before sampling when ``seed`` is given (open-loop parity)."""
+        if seed is None:
+            return
+        import torch
+
+        torch.manual_seed(int(seed))
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(int(seed))
 
     @abstractmethod
     def load_model(
@@ -70,8 +99,13 @@ class AlpamayoAdapter(ABC):
         navigation_text: str | None = None,
         navigation_weight: float = 1.0,
         vlm_generate_timing: Any | None = None,
+        seed: int | None = None,
     ) -> tuple[Any, Any]:
-        """Run trajectory inference; return ``(pred_xyz, extra)``."""
+        """Run trajectory inference; return ``(pred_xyz, extra)``.
+
+        ``seed`` reseeds the sampler RNG first when given, so replaying the same input
+        yields the same trajectory (used by open-loop and the parity harness).
+        """
 
     def run_vqa(
         self,
@@ -79,6 +113,7 @@ class AlpamayoAdapter(ABC):
         processor: Any,
         data: dict[str, Any],
         question: str,
+        seed: int | None = None,
     ) -> Any:
         """Run VQA text generation. Overridden only by versions that support it."""
         raise NotImplementedError(

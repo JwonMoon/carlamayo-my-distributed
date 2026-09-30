@@ -13,7 +13,6 @@ video. The recorded seven-camera superset is subset to the selected version's ri
 import time
 
 import numpy as np
-import torch
 
 from module import config as cfg
 from module.inference import (
@@ -21,6 +20,7 @@ from module.inference import (
     extract_trajectory_samples,
 )
 from module.loops._common import collect_oom_kwargs
+from module.run_dir import resolve_output_video
 from module.open_loop_dataset import (
     load_front_camera_image,
     load_open_loop_arrays,
@@ -46,7 +46,7 @@ def _load_model(adapter, args):
 def run(adapter, args):
     """Run open-loop inference for ``adapter`` over the recorded dataset."""
 
-    output_video = args.output_video or cfg.OPEN_LOOP_OUTPUT_VIDEO
+    output_video = resolve_output_video(args, cfg.OPEN_LOOP_OUTPUT_VIDEO)
     camera_order = list(adapter.source_camera_configs)
     front_camera_name = camera_order[adapter.viz_camera_slot]
 
@@ -86,9 +86,8 @@ def run(adapter, args):
         model_input = adapter.prepare_model_input(
             arrays["image_frames"], arrays["history_xyz"], arrays["history_rot"], arrays["t0_us"]
         )
-        torch.cuda.manual_seed_all(42)
         inference_start = time.perf_counter()
-        pred_xyz, extra = adapter.run_inference(model, processor, model_input)
+        pred_xyz, extra = adapter.run_inference(model, processor, model_input, seed=cfg.OPEN_LOOP_SEED)
         inference_time = time.perf_counter() - inference_start
 
         predictions.append(extract_trajectory_samples(pred_xyz))
@@ -106,8 +105,9 @@ def run(adapter, args):
     print("=" * 60)
     print(f"Total frames processed: {len(predictions)}")
     print(f"Average inference time: {avg_time:.2f}s/frame")
-    if torch.cuda.is_available():
-        print(f"Memory usage: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
+    summary = adapter.runtime_summary()
+    if summary:
+        print(summary)
 
     if predictions:
         from module.visualization import save_open_loop_video

@@ -36,6 +36,7 @@ class Alpamayo2Adapter(AlpamayoAdapter):
     ):
         if oom_free:
             raise ValueError("OOM-free demand layering is not supported for Alpamayo 2.")
+        self.quantization = bool(use_quantization)
 
         from alpamayo2_super import helper
         from alpamayo2_super.models.alpamayo2_super import Alpamayo2Super
@@ -137,10 +138,12 @@ class Alpamayo2Adapter(AlpamayoAdapter):
 
     def run_inference(
         self, model, processor, data,
-        navigation_text=None, navigation_weight=1.0, vlm_generate_timing=None,
+        navigation_text=None, navigation_weight=1.0, vlm_generate_timing=None, seed=None,
     ):
         from alpamayo2_super import helper
         from alpamayo2_super.input_profiles import select_task_input
+
+        self.seed_everything(seed)
 
         from module.vlm_generate_optimization import optimized_vlm_generate
         from module.config import NUM_TRAJ_SAMPLES
@@ -183,11 +186,12 @@ class Alpamayo2Adapter(AlpamayoAdapter):
             )
         return pred_xyz, extra
 
-    def run_vqa(self, model, processor, data, question):
+    def run_vqa(self, model, processor, data, question, seed=None):
         from alpamayo2_super import helper
         from alpamayo2_super.input_profiles import select_task_input
         from alpamayo2_super.text_tasks import generate_text, prepare_vqa_inputs
 
+        self.seed_everything(seed)
         question = question.strip()
         if not question:
             raise ValueError("question must not be empty")

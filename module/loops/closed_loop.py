@@ -15,8 +15,6 @@ import threading
 import time
 import traceback
 
-import torch
-
 from module import config as cfg
 from module.carla_interface import CARLAInterface
 from module.inference import (
@@ -32,6 +30,7 @@ from module.loops._common import (
 from module.navigation_control import NavigationControlState
 from module.pid_controller import OfficialPIDFollower
 from module.respawn_control import RespawnMonitor
+from module.run_dir import resolve_output_video
 from module.visualization import VideoRecorder, create_visualization_frame
 from module.vlm_generate_optimization import VlmGenerateTiming
 
@@ -86,7 +85,7 @@ def run(adapter, args):
     inference_interval_sec = 1.0
     viz_slot = adapter.viz_camera_slot
     num_cameras = adapter.num_cameras
-    output_video = args.output_video or cfg.OUTPUT_VIDEO
+    output_video = resolve_output_video(args, cfg.OUTPUT_VIDEO)
     start_paused = bool(args.pygame_ui)
     pygame_ui_video = derive_pygame_ui_video_path(output_video) if args.pygame_ui else None
 
@@ -125,7 +124,7 @@ def run(adapter, args):
             use_quantization=args.quantization, device_map=args.device_map
         )
         print("Model loaded!")
-        print(f"VRAM: {torch.cuda.memory_allocated() / 1024**3:.1f} GB allocated")
+        print(adapter.runtime_summary())
     else:
         # Defer OOM-free loading until CARLA has spawned so the residency plan
         # reflects the VRAM CARLA actually leaves free.
@@ -171,7 +170,7 @@ def run(adapter, args):
                 oom_free=True, oom_kwargs=oom_kwargs,
             )
             print("Model loaded!")
-            print(f"VRAM: {torch.cuda.memory_allocated() / 1024**3:.1f} GB allocated")
+            print(adapter.runtime_summary())
 
         pid_follower = OfficialPIDFollower(carla_if.world, carla_if.ego_vehicle)
 

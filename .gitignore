@@ -234,3 +234,6 @@ CLAUDE.md
 .gjc/
 .claude/
 .code-review-graph/
+
+# Per-run output folders (videos, logs, profiles)
+runs/

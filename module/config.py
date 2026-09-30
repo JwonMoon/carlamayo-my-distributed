@@ -17,6 +17,8 @@ CAMERA_ENABLE_POSTPROCESS_EFFECTS = True
 NUM_HISTORY = 16
 NUM_FRAMES = 4
 NUM_TRAJ_SAMPLES = 1
+# Open-loop reseeds the sampler before every frame so replays are reproducible.
+OPEN_LOOP_SEED = 42
 
 # Video Configuration
 SAVE_VIDEO = True

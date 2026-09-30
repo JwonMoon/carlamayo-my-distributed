@@ -9,7 +9,7 @@
 
 ---
 
-## ☐ 1. torch 디커플링 (A에서 torch 없이 import 가능하게)
+## ☑ 1. torch 디커플링 (A에서 torch 없이 import 가능하게)
 
 | 파일 | 변경 |
 |---|---|
@@ -21,7 +21,7 @@
 | `tests/test_inference_utils.py` | numpy 입력 케이스 추가 |
 | 검증 | `python -c "import module.loops.closed_loop"`가 torch 없는 venv에서 성공(단, `carla` 필요). CI 통과 |
 
-## ☐ 1b. 실행 결과 폴더 (run 디렉터리) — 원격과 무관, 지금 코드에도 적용
+## ☑ 1b. 실행 결과 폴더 (run 디렉터리) — 원격과 무관, 지금 코드에도 적용
 
 지금은 영상 파일명이 고정(`module/config.py:23-25`)이라 재실행 시 덮어쓴다. 실행마다 폴더를 만든다.
 

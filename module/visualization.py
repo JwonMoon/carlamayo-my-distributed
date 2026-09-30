@@ -7,7 +7,6 @@ import textwrap
 
 import cv2
 import numpy as np
-import torch
 
 
 def _project_one_trajectory(
@@ -55,7 +54,7 @@ def project_trajectory_to_image(cam_img, pred_xyz, selected_idx=0, camera_height
     focal_length_px = img_width / (2 * np.tan(np.radians(fov / 2)))
 
     result = cam_img.copy()
-    if isinstance(pred_xyz, torch.Tensor):
+    if hasattr(pred_xyz, "detach"):  # torch tensor without importing torch
         arr = pred_xyz.detach().cpu().numpy()
     else:
         arr = np.asarray(pred_xyz)
