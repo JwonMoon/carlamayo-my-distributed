@@ -19,6 +19,7 @@
 | 2026-09-30 | 로드맵 1·1b 구현 후, 같은 조건 | **79 passed** |
 | 2026-09-30 | 로드맵 2·3 구현 후, 같은 조건 + grpcio/grpcio-tools/grpcio-health-checking/protobuf | **104 passed** |
 | 2026-09-30 | 로드맵 4·5 + 프로파일링 모듈 구현 후, + psutil/nvidia-ml-py | **133 passed** |
+| 2026-09-30 | 로드맵 6·6b(루프 연결) + 루프 스모크 테스트 후 | **142 passed** |
 
 ## 변경 표
 
@@ -57,5 +58,9 @@
 | 2026-09-30 | 원격 어댑터 | `module/loops/{closed_loop,live_open_loop,open_loop}.py` | `adapter.is_remote`면 CUDA linalg 설정·모델 옵션 출력 생략, `load_model()`만 호출. open-loop는 핸드셰이크 후 카메라 순서 계산(리그가 서버에서 오므로). 원격일 때 `model_data["meta"]`에 frame·revision 전달 | | 4 |
 | 2026-09-30 | 추론 서버 | `alpamayo_server.py`(신규), `tests/test_alpamayo_server_cli.py` | CLI(`--version`/`--fake`, `--host/--port`, 모델 옵션, `--no-warmup`, `--runs-root`, `--profile`), 로드 → 서버 기동(NOT_SERVING) → 더미 워밍업 → SERVING, SIGINT/SIGTERM 종료 | B에서 실행하는 유일한 프로세스 | 5 |
 | 2026-09-30 | 프로파일링 | `module/profiling.py`(신규), `tests/test_profiling.py` | `CsvRecorder`(백그라운드 스레드 CSV), `gpu_stats`(pynvml), `SystemSampler`(psutil CPU/RAM/네트워크 + GPU), `ClientProfiler`(tick/rpc/sys CSV), `ServerProfiler`(run_id별 `profile_server*.csv`) | 로드맵 6b 기반. 루프 연결은 다음 단계 | 6b |
+| 2026-09-30 | 안전장치 | `module/config.py`, `module/loops/_common.py`, `module/loops/closed_loop.py`, `carlamayo.py` | `TRAJECTORY_MAX_AGE_SEC=6.0`, `trajectory_is_stale()`, `--trajectory-max-age-sec`. closed-loop가 PID 적용 직전 궤적 나이를 검사해 초과 시 궤적을 버리고 정지 | 서버 장애·타임아웃 후 옛 궤적으로 계속 주행하는 것 방지 | 6 |
+| 2026-09-30 | 프로파일링 | `module/loops/_common.py`, `module/loops/{closed_loop,live_open_loop,open_loop}.py`, `carlamayo.py` | `start_client_profiler`(run 폴더에 `profile_client*.csv`, 원격 어댑터의 `on_rpc` 연결), `record_local_inference`(로컬 어댑터 추론 시간도 같은 CSV에), tick마다 `profiler.tick(...)`(tick/캡처/추론/제어/UI 시간, 속도·조향·궤적 나이). `--profile/--no-profile`, `--profile-interval-sec`. open-loop는 `predictions.npz`도 저장(parity용) | 보고서용 성능 기록 | 6b |
+| 2026-09-30 | 버그 수정 | `module/loops/{closed_loop,live_open_loop}.py` | `viz_slot`/`num_cameras`를 `load_model()` 이후에 읽도록 이동(원격 어댑터는 핸드셰이크 전에는 리그가 비어 있음) | 스모크 테스트가 발견 | 4 |
+| 2026-09-30 | 테스트 | `tests/test_loops_smoke.py`, `tests/test_loop_common.py` | 가짜 `carla` 모듈·가짜 `CARLAInterface`·가짜 PID로 closed-loop(sync/async)·live-open을 원격 어댑터 + 가짜 서버에 붙여 끝까지 실행. 제어 적용, run 폴더·CSV·서버 미러 폴더 확인, stale 가드 정지 확인 | GPU·CARLA 없이 루프 경로 회귀 방지 | 6b |
 
-> 위 변경 후 `python -m pytest -q tests`: **133 passed**.
+> 위 변경 후 `python -m pytest -q tests`: **142 passed**.

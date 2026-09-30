@@ -78,6 +78,17 @@ def build_parser(preset_loop=None):
     parser.add_argument("--no-run-dir", action="store_true",
                         help="Write outputs to the current directory like upstream did.")
 
+    # Profiling and safety (docs/distributed-architecture.md §9, roadmap 6/6b).
+    parser.add_argument("--profile", dest="profile", action="store_true", default=True,
+                        help="Record per-tick / per-request / system CSVs into the run folder.")
+    parser.add_argument("--no-profile", dest="profile", action="store_false",
+                        help="Disable profiling.")
+    parser.add_argument("--profile-interval-sec", type=float, default=None,
+                        help="System resource sampling period (default: config.PROFILE_INTERVAL_SEC).")
+    parser.add_argument("--trajectory-max-age-sec", type=float, default=None,
+                        help="[closed] Brake when the followed trajectory is older than this "
+                             "(default: config.TRAJECTORY_MAX_AGE_SEC; 0 disables).")
+
     # Remote inference (two-host setup): send frames to alpamayo_server.py instead of
     # loading the model in this process. Model-loading flags then belong to the server.
     parser.add_argument("--inference-server", default=None, metavar="HOST:PORT",

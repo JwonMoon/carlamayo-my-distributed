@@ -24,7 +24,12 @@ from module.inference import (
     extract_trajectory_samples,
     select_trajectory_by_prev_similarity,
 )
-from module.loops._common import collect_oom_kwargs, stack_frame_buffer
+from module.loops._common import (
+    collect_oom_kwargs,
+    record_local_inference,
+    stack_frame_buffer,
+    start_client_profiler,
+)
 from module.run_dir import resolve_output_video
 from module.visualization import VideoRecorder, create_live_open_loop_visualization_frame
 from module.vlm_generate_optimization import VlmGenerateTiming
@@ -47,8 +52,6 @@ def _check_capabilities(adapter, args):
 
 def run(adapter, args):
     _check_capabilities(adapter, args)
-    viz_slot = adapter.viz_camera_slot
-    num_cameras = adapter.num_cameras
     output_video = resolve_output_video(args, cfg.LIVE_OPEN_LOOP_OUTPUT_VIDEO)
     inference_interval_sec = 1.0
     nav_text = args.navigation_text if adapter.supports_navigation else ""
@@ -65,7 +68,6 @@ def run(adapter, args):
     print(f"Execution: {'ASYNC' if args.async_mode else 'SYNC'}")
     print("Control: CARLA Traffic Manager autopilot (model does NOT drive)")
     print(f"CARLA map: {cfg.CARLA_MAP}")
-    print(f"Cameras: {num_cameras}")
     if nav_text:
         print(f"Navigation prompt (observation only): {nav_text}")
 
@@ -87,8 +89,13 @@ def run(adapter, args):
     else:
         print("OOM-free mode: Alpamayo loads after CARLA is fully spawned.")
 
+    # Read the rig only now: a remote adapter learns it from the load_model() handshake.
+    viz_slot = adapter.viz_camera_slot
+    num_cameras = adapter.num_cameras
+    print(f"Cameras: {num_cameras} ({', '.join(adapter.source_camera_configs)})")
     carla_if = CARLAInterface(camera_configs=adapter.source_camera_configs)
     video_recorder = VideoRecorder(output_video, fps=cfg.VIDEO_FPS) if cfg.SAVE_VIDEO else None
+    profiler = start_client_profiler(adapter, args)
     vlm_generate_timing = VlmGenerateTiming()
 
     current_pred_xyz = None
@@ -122,6 +129,7 @@ def run(adapter, args):
     def _ingest_result(pred_xyz, extra, inference_time, submitted_frame):
         nonlocal current_pred_xyz, current_selected_traj_idx, prev_selected_trajectory
         nonlocal current_cot, current_inference_time
+        record_local_inference(profiler, adapter, "predict", submitted_frame, inference_time)
         traj_samples = extract_trajectory_samples(pred_xyz)
         selected_idx, _scores = select_trajectory_by_prev_similarity(
             traj_samples, prev_selected_trajectory
@@ -206,8 +214,10 @@ def run(adapter, args):
 
         frame_count = 0
         while True:
+            t_tick_start = time.perf_counter()
             carla_if.tick()
             frame_count += 1
+            tick_inference_sec = 0.0
 
             state = carla_if.get_ego_state()
             carla_if.update_history(state)
@@ -226,6 +236,7 @@ def run(adapter, args):
                 print(f"[Frame {frame_count}] Warning: {exc}; skipping this tick.")
                 continue
 
+            t_captured = time.perf_counter()
             frame_buffer.append(images)
             if len(frame_buffer) > cfg.NUM_FRAMES:
                 frame_buffer.pop(0)
@@ -282,7 +293,8 @@ def run(adapter, args):
                         model_data["meta"] = {"frame": frame_count}
                     model_start = time.time()
                     pred_xyz, extra = _run_inference_with_linalg_fallback(model_data)
-                    _ingest_result(pred_xyz, extra, time.time() - model_start, frame_count)
+                    tick_inference_sec = time.time() - model_start
+                    _ingest_result(pred_xyz, extra, tick_inference_sec, frame_count)
 
             if current_pred_xyz is not None and cfg.SAVE_VIDEO:
                 vis_frame = create_live_open_loop_visualization_frame(
@@ -296,6 +308,16 @@ def run(adapter, args):
                 f"[Frame {frame_count}] Autopilot -> Speed: {state['speed']*3.6:.1f} km/h, "
                 f"Steer: {control['steer']:.4f}, Throttle: {control['throttle']:.3f}, "
                 f"Brake: {control['brake']:.3f}"
+            )
+            profiler.tick(
+                frame=frame_count, sim_time=frame_count * cfg.CONTROL_DT,
+                tick_sec=time.perf_counter() - t_tick_start,
+                camera_capture_sec=t_captured - t_tick_start,
+                inference_sec=tick_inference_sec, control_sec=0.0, ui_sec=0.0,
+                speed_kmh=state["speed"] * 3.6, steer=control["steer"],
+                throttle=control["throttle"], brake=control["brake"],
+                trajectory_age_sec="", pending_inference=pending_inference,
+                has_trajectory=current_pred_xyz is not None,
             )
 
     except KeyboardInterrupt:
@@ -319,6 +341,7 @@ def run(adapter, args):
                 pass
         if cfg.SAVE_VIDEO and video_recorder:
             video_recorder.save()
+        profiler.close()
         carla_if.cleanup()
 
     print("\nStopped.")

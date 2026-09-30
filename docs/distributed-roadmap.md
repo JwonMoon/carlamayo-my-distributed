@@ -75,15 +75,15 @@
 | CFG/VQA | `Predict`의 `navigation_weight`를 그대로 `run_inference`에, `AnswerQuestion`은 `run_vqa`에 |
 | run_id별 폴더 | 처음 보는 `run_id`가 오면 `runs/<run_id>/`를 만들고 6b의 `profile_server.csv`를 그 안에 씀 |
 
-## ☐ 6. stale trajectory 안전장치
+## ☑ 6. stale trajectory 안전장치
 
 | 항목 | 내용 |
 |---|---|
-| `module/config.py` | `TRAJECTORY_MAX_AGE_SEC = 3.0` |
+| `module/config.py` | `TRAJECTORY_MAX_AGE_SEC = 6.0` (async에서 결과는 1 s + 추론 시간마다 오고 궤적 지평이 6.4 s이므로), `--trajectory-max-age-sec`로 재정의, 0이면 끔 |
 | `module/loops/closed_loop.py` | PID 적용 직전 `time.time() - current_trajectory_ts > cfg.TRAJECTORY_MAX_AGE_SEC`면 `current_trajectory = None`(→ 기존 정지 분기). 동기·비동기 모두 적용 |
 | `tests/` | 나이 계산 헬퍼를 순수 함수로 빼서 테스트 |
 
-## ☐ 6b. 프로파일링 (A/B 양쪽, 옵션 on/off)
+## ◐ 6b. 프로파일링 (A/B 양쪽, 옵션 on/off) — 기록은 완료, `analyze_run.py`·`fetch_server_profile.sh` 남음
 
 | 항목 | 내용 |
 |---|---|

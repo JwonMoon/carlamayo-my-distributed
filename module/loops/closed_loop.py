@@ -25,7 +25,11 @@ from module.inference import (
 from module.loops._common import (
     collect_oom_kwargs,
     derive_pygame_ui_video_path,
+    record_local_inference,
     stack_frame_buffer,
+    start_client_profiler,
+    trajectory_is_stale,
+    trajectory_max_age_sec,
 )
 from module.navigation_control import NavigationControlState
 from module.pid_controller import OfficialPIDFollower
@@ -83,8 +87,6 @@ def _check_capabilities(adapter, args):
 def run(adapter, args):
     _check_capabilities(adapter, args)
     inference_interval_sec = 1.0
-    viz_slot = adapter.viz_camera_slot
-    num_cameras = adapter.num_cameras
     output_video = resolve_output_video(args, cfg.OUTPUT_VIDEO)
     start_paused = bool(args.pygame_ui)
     pygame_ui_video = derive_pygame_ui_video_path(output_video) if args.pygame_ui else None
@@ -102,7 +104,6 @@ def run(adapter, args):
     print(f"Inference mode: {args.mode}")
     print(f"Pygame UI: {'ON' if args.pygame_ui else 'OFF'}")
     print(f"CARLA map: {cfg.CARLA_MAP}")
-    print(f"Cameras: {num_cameras}")
     print("Auto respawn: ON after collisions")
 
     nav_state = NavigationControlState(
@@ -137,8 +138,16 @@ def run(adapter, args):
         # reflects the VRAM CARLA actually leaves free.
         print("OOM-free mode: Alpamayo loads after CARLA is fully spawned.")
 
+    # Read the rig only now: a remote adapter learns it from the load_model() handshake.
+    viz_slot = adapter.viz_camera_slot
+    num_cameras = adapter.num_cameras
+    print(f"Cameras: {num_cameras} ({', '.join(adapter.source_camera_configs)})")
     carla_if = CARLAInterface(camera_configs=adapter.source_camera_configs)
     video_recorder = VideoRecorder(output_video, fps=cfg.VIDEO_FPS) if cfg.SAVE_VIDEO else None
+    profiler = start_client_profiler(adapter, args)
+    max_traj_age = trajectory_max_age_sec(args)
+    if max_traj_age > 0:
+        print(f"Trajectory max age: {max_traj_age:.1f}s (brake when older)")
     pygame_ui = None
     pygame_ui_recorder = None
     latest_ui_frame = None
@@ -424,8 +433,10 @@ def run(adapter, args):
                     draw_pygame_ui(latest_ui_frame, latest_telemetry)
                     continue
 
+            t_tick_start = time.perf_counter()
             carla_if.tick()
             frame_count += 1
+            tick_inference_sec = 0.0
 
             state = carla_if.get_ego_state()
             carla_if.update_history(state)
@@ -454,6 +465,7 @@ def run(adapter, args):
                 if pygame_ui is not None:
                     draw_pygame_ui(latest_ui_frame, latest_telemetry)
                 continue
+            t_captured = time.perf_counter()
             if len(images) > viz_slot:
                 latest_ui_frame = images[viz_slot]
             latest_telemetry = {
@@ -523,6 +535,9 @@ def run(adapter, args):
                         )
                         nav_state.set_vqa_answer(answer)
                         current_inference_time = float(latest_result["inference_time"])
+                        record_local_inference(
+                            profiler, adapter, "vqa", latest_result["frame_submitted"], current_inference_time
+                        )
                         last_vqa_completed_revision = latest_result.get("prompt_revision")
                         print(
                             f"[Frame {frame_count}] VQA done: {current_inference_time:.2f}s "
@@ -534,6 +549,9 @@ def run(adapter, args):
                         pred_xyz = latest_result["pred_xyz"]
                         extra = latest_result["extra"]
                         inference_time = float(latest_result["inference_time"])
+                        record_local_inference(
+                            profiler, adapter, "predict", latest_result["frame_submitted"], inference_time
+                        )
                         traj_samples = extract_trajectory_samples(pred_xyz)
                         selected_idx, _scores = select_trajectory_by_prev_similarity(
                             traj_samples, prev_selected_trajectory
@@ -556,6 +574,10 @@ def run(adapter, args):
                         )
                     else:
                         print(f"[Frame {frame_count}] Inference error: {latest_result['error']}")
+                        record_local_inference(
+                            profiler, adapter, "predict", latest_result["frame_submitted"], 0.0,
+                            error=latest_result["error"],
+                        )
                         if args.debug_worker_traceback and latest_result.get("traceback"):
                             print(latest_result["traceback"].rstrip())
             else:
@@ -583,6 +605,8 @@ def run(adapter, args):
                                 model_data, question=nav_state.vqa_question
                             )
                             model_inference_time = time.time() - model_start_time
+                            tick_inference_sec = model_inference_time
+                            record_local_inference(profiler, adapter, "vqa", frame_count, model_inference_time)
                             answer = adapter.extract_answer_text(extra)
                             nav_state.set_vqa_answer(answer)
                             current_inference_time = model_inference_time
@@ -604,6 +628,8 @@ def run(adapter, args):
                             navigation_weight=navigation_weight,
                         )
                         model_inference_time = time.time() - model_start_time
+                        tick_inference_sec = model_inference_time
+                        record_local_inference(profiler, adapter, "predict", frame_count, model_inference_time)
                         traj_samples = extract_trajectory_samples(pred_xyz)
                         selected_idx, _scores = select_trajectory_by_prev_similarity(
                             traj_samples, prev_selected_trajectory
@@ -627,6 +653,19 @@ def run(adapter, args):
                             f"{cfg.NUM_TRAJ_SAMPLES - 1}"
                         )
 
+            if current_trajectory is not None and trajectory_is_stale(
+                current_trajectory_ts, max_age_sec=max_traj_age
+            ):
+                print(
+                    f"[Frame {frame_count}] Trajectory is older than {max_traj_age:.1f}s "
+                    "(no fresh inference result); braking until a new one arrives."
+                )
+                current_trajectory = None
+                current_pred_xyz = None
+                prev_control = {"steer": 0.0, "throttle": 0.0, "brake": 1.0}
+
+            t_control_start = time.perf_counter()
+            traj_age = (time.time() - current_trajectory_ts) if current_trajectory_ts is not None else ""
             if current_trajectory is not None:
                 vehicle_tf = carla_if.ego_vehicle.get_transform()
                 steering_raw, throttle_raw, brake_raw, _ctrl_debug = pid_follower.compute_control(
@@ -642,6 +681,7 @@ def run(adapter, args):
                     throttle = 0.0
                 prev_control = {"steer": steering, "throttle": throttle, "brake": brake}
                 carla_if.apply_control(steering, throttle, brake)
+                t_control_done = time.perf_counter()
 
                 if current_pred_xyz is not None:
                     cam_img = images[viz_slot]
@@ -671,8 +711,20 @@ def run(adapter, args):
                 )
                 if current_trajectory_ts is not None and args.async_mode:
                     print(f"    Trajectory age: {time.time() - current_trajectory_ts:.2f}s")
+                profiler.tick(
+                    frame=frame_count, sim_time=frame_count * cfg.CONTROL_DT,
+                    tick_sec=time.perf_counter() - t_tick_start,
+                    camera_capture_sec=t_captured - t_tick_start,
+                    inference_sec=tick_inference_sec,
+                    control_sec=t_control_done - t_control_start,
+                    ui_sec=time.perf_counter() - t_control_done,
+                    speed_kmh=state["speed"] * 3.6, steer=steering, throttle=throttle, brake=brake,
+                    trajectory_age_sec=traj_age, pending_inference=pending_inference,
+                    has_trajectory=True,
+                )
             else:
                 carla_if.apply_control(0.0, 0.0, 1.0)
+                t_control_done = time.perf_counter()
                 latest_telemetry = {
                     "frame": frame_count,
                     "speed_kmh": state["speed"] * 3.6,
@@ -681,6 +733,17 @@ def run(adapter, args):
                 }
                 if pygame_ui is not None:
                     draw_pygame_ui(latest_ui_frame, latest_telemetry)
+                profiler.tick(
+                    frame=frame_count, sim_time=frame_count * cfg.CONTROL_DT,
+                    tick_sec=time.perf_counter() - t_tick_start,
+                    camera_capture_sec=t_captured - t_tick_start,
+                    inference_sec=tick_inference_sec,
+                    control_sec=t_control_done - t_control_start,
+                    ui_sec=time.perf_counter() - t_control_done,
+                    speed_kmh=state["speed"] * 3.6, steer=0.0, throttle=0.0, brake=1.0,
+                    trajectory_age_sec=traj_age, pending_inference=pending_inference,
+                    has_trajectory=False,
+                )
 
     except KeyboardInterrupt:
         print("\n\nInterrupted by user.")
@@ -702,6 +765,7 @@ def run(adapter, args):
             pygame_ui_recorder.save()
         if pygame_ui is not None:
             pygame_ui.close()
+        profiler.close()
         carla_if.cleanup()
 
     print("\nStopped.")

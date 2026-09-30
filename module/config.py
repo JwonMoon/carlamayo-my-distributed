@@ -51,6 +51,15 @@ CONTROL_SMOOTH_ALPHA = 0.25
 # Auto-respawn after collision.
 RESPAWN_COLLISION_COOLDOWN_FRAMES = 10
 
+# Closed-loop safety: stop following a trajectory older than this (wall-clock seconds).
+# Inference results arrive every ~1 s plus the inference time in --async mode, and the
+# predicted horizon is 6.4 s, so 6 s keeps normal operation untouched while a dead
+# inference server no longer lets the ego drive on a stale plan indefinitely.
+TRAJECTORY_MAX_AGE_SEC = 6.0
+
+# Profiling (see docs/distributed-architecture.md §9): system sampling period.
+PROFILE_INTERVAL_SEC = 1.0
+
 # Official PID follower config
 PID_LOOKAHEAD_MIN_M = 4.0
 PID_LOOKAHEAD_MAX_M = 12.0

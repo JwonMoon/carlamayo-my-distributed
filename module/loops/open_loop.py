@@ -19,7 +19,7 @@ from module.inference import (
     configure_cuda_linalg_library,
     extract_trajectory_samples,
 )
-from module.loops._common import collect_oom_kwargs
+from module.loops._common import collect_oom_kwargs, record_local_inference, start_client_profiler
 from module.open_loop_dataset import (
     load_front_camera_image,
     load_open_loop_arrays,
@@ -74,6 +74,7 @@ def run(adapter, args):
     print("\nLoading model...")
     model, processor = _load_model(adapter, args)
     print("Model loaded!")
+    profiler = start_client_profiler(adapter, args)
     print(f"CARLA -> {adapter.display_name}")
     camera_order = list(adapter.source_camera_configs)
     front_camera_name = camera_order[adapter.viz_camera_slot]
@@ -93,9 +94,16 @@ def run(adapter, args):
         model_input = adapter.prepare_model_input(
             arrays["image_frames"], arrays["history_xyz"], arrays["history_rot"], arrays["t0_us"]
         )
+        if adapter.is_remote:
+            model_input["meta"] = {"frame": int(frame_id)}
         inference_start = time.perf_counter()
         pred_xyz, extra = adapter.run_inference(model, processor, model_input, seed=cfg.OPEN_LOOP_SEED)
         inference_time = time.perf_counter() - inference_start
+        record_local_inference(profiler, adapter, "predict", int(frame_id), inference_time)
+        profiler.tick(
+            frame=int(frame_id), sim_time=frame_index * cfg.CONTROL_DT, tick_sec=inference_time,
+            inference_sec=inference_time, has_trajectory=True,
+        )
 
         predictions.append(extract_trajectory_samples(pred_xyz))
         cot_text = adapter.extract_cot_text(extra)
@@ -115,6 +123,20 @@ def run(adapter, args):
     summary = adapter.runtime_summary()
     if summary:
         print(summary)
+
+    profiler.close()
+    run_dir = getattr(args, "run_dir", None)
+    if predictions and run_dir is not None:
+        # Raw predictions for tools/parity_open_loop.py (local vs remote comparison).
+        np.savez_compressed(
+            run_dir.path("predictions.npz"),
+            predictions=np.stack(predictions),
+            frame_ids=np.asarray(frame_ids[start_index:start_index + len(predictions)]),
+            inference_times=np.asarray(inference_times, dtype=np.float32),
+            cot_texts=np.asarray(cot_texts, dtype=object),
+            seed=cfg.OPEN_LOOP_SEED,
+        )
+        print(f"Predictions saved to {run_dir.path('predictions.npz')}")
 
     if predictions:
         from module.visualization import save_open_loop_video
