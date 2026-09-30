@@ -4,7 +4,7 @@
 
 | 기호 | 인스턴스 | 내부 IP | 여기서 실행하는 것 |
 |---|---|---|---|
-| **[A]** | g5.2xlarge | `172.31.38.219` | CARLA 서버, **`carlamayo.py`(open/closed/live-open 전부)**, `data_collect.py`, pygame UI(DCV) |
+| **[A]** | g5.2xlarge | `172.31.38.219` | CARLA 서버, **`carlamayo.py`(open/closed/live-open 전부)**, `data_collect.py`, pygame UI(DCV), 프로파일 분석 |
 | **[B]** | g6e.xlarge | `172.31.20.213` | **`alpamayo_server.py`**(모델을 한 번 로드해 gRPC로 상주), 공식 노트북 |
 
 `carlamayo.py`는 CARLA와 **같은 인스턴스(A)** 에서 돈다. 이 프로그램이 CARLA로부터 매 tick
@@ -26,8 +26,12 @@
 | `live-open` | 실시간 CARLA | **CARLA 오토파일럿** | 영상에 오버레이만, 핸들에 닿지 않음 | 실제 주행 정책과 모델 예측을 나란히 관찰 |
 | `closed` | 실시간 CARLA | **모델**(PID 경유) | 조향·가속·제동으로 적용 | 본 실험 |
 
-> "(로드맵 N)" 표시가 붙은 명령은 [distributed-roadmap.md](distributed-roadmap.md)의 해당 단계가
-> 구현된 뒤에 동작한다. 표시가 없는 명령은 지금 업스트림 코드로도 동작한다.
+### 모든 실행의 공통 산출물
+
+실행할 때마다 `~/carlamayo/runs/<run_id>/` 폴더가 생기고(`<run_id>` = `시각_loop_v버전[_모드][_태그]`,
+터미널 첫 줄에 출력), 그 안에 영상, `args.json`, `log.txt`, `profile_client*.csv`가 쌓인다.
+`--run-tag 이름`으로 꼬리표를 붙이고, `--no-profile`로 프로파일링을 끄고, `--no-run-dir`로
+업스트림처럼 현재 폴더에 저장할 수 있다.
 
 ---
 
@@ -36,48 +40,28 @@
 ### [A] sim host
 
 ```bash
-# 저장소
 git clone https://github.com/jwonmoon/carlamayo-my-distributed.git ~/carlamayo
-cd ~/carlamayo
-
-# CARLA 0.9.16
-mkdir -p ~/carla && cd ~/carla
-wget https://tiny.carla.org/carla-0-9-16-linux
-tar -xvzf carla-0-9-16-linux
-echo 'export CARLA_ROOT=~/carla' >> ~/.bashrc && source ~/.bashrc
-
-# Python 환경 (torch 없음)
-cd ~/carlamayo
-python3.10 -m venv venv-sim
-source venv-sim/bin/activate
-pip install -r requirements-carla.txt          # (로드맵 8 이후: requirements-sim.txt)
-sudo apt-get install -y ffmpeg
+~/carlamayo/deploy/scripts/setup-sim-host.sh      # CARLA 0.9.16, venv-sim(torch 없음), ffmpeg, Vulkan
+source ~/.bashrc                                   # CARLA_ROOT 반영
 ```
+
+수동으로 하려면 [deploy/aws/README.md](../deploy/aws/README.md)와 [environment-setup.md](environment-setup.md) §1, §3.
 
 ### [B] inference host
 
 ```bash
 git clone https://github.com/jwonmoon/carlamayo-my-distributed.git ~/carlamayo
-cd ~/carlamayo
-git submodule update --init third_party/alpamayo1.5      # 1.5만
-curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH="$HOME/.local/bin:$PATH"
-uv venv a_venv --python 3.12
-source a_venv/bin/activate
-uv sync --active
-python -m ensurepip --upgrade
-python -m pip install --no-deps -e third_party/alpamayo1.5
-python -m pip install -r requirements-alpamayo.txt        # (로드맵 8 이후: requirements-inference.txt)
-hf auth login                                             # 모델 게이트 승인 후
+~/carlamayo/deploy/scripts/setup-inference-host.sh   # uv env, alpamayo1.5 서브모듈, gRPC 의존성
+source ~/carlamayo/a_venv/bin/activate
+hf auth login                                        # 모델 게이트 승인 후 (토큰은 B에만)
 ```
 
-### A ↔ B 사이 파일 복사 준비 (한 번만)
-
-A에서 B로 `rsync`/`scp`를 쓰려면 A의 SSH 키가 B에 등록되어 있어야 한다.
+### A → B 파일 복사 준비 (한 번만)
 
 ```bash
 # [A]
 ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519      # 이미 있으면 생략
-cat ~/.ssh/id_ed25519.pub                             # 출력 내용을 복사
+cat ~/.ssh/id_ed25519.pub                             # 출력을 복사
 # [B]
 echo '<A의 공개키 한 줄>' >> ~/.ssh/authorized_keys
 # [A] 확인
@@ -90,15 +74,14 @@ ssh ubuntu@172.31.20.213 hostname
 
 | 순서 | 어디 | 명령 | 확인 |
 |---|---|---|---|
-| 1 | [B] | `cd ~/carlamayo && source a_venv/bin/activate && python alpamayo_server.py --version 1.5 --host 172.31.20.213 --port 50051` (로드맵 5) | 로그에 `warmed_up=True`, `SERVING` |
-| 1 (대안) | [B] | `sudo systemctl start alpamayo-server && journalctl -u alpamayo-server -f` (로드맵 9) | 같음 |
+| 1 | [B] | `cd ~/carlamayo && source a_venv/bin/activate && python alpamayo_server.py --version 1.5 --host 172.31.20.213 --port 50051` | 로그 마지막에 `SERVING ... warmed_up=True` |
+| 1 (대안) | [B] | `sudo systemctl start alpamayo-server && journalctl -u alpamayo-server -f` (서비스 등록은 [deploy/aws/README.md](../deploy/aws/README.md)) | 같음 |
 | 2 | [A] | `cd ~/carla && ./CarlaUE4.sh -RenderOffScreen -quality-level=Epic` | 별도 터미널(또는 `tmux`)에서 유지 |
 | 3 | [A] | `nvidia-smi` | CARLA가 약 6 GB 사용 |
 
 1과 "1 (대안)"은 **둘 중 하나**만 한다. `systemd`는 Linux의 백그라운드 서비스 관리자로, 서비스로
 등록하면 터미널을 닫아도 서버가 유지되고 재부팅·크래시 시 자동으로 다시 뜨며 로그는
-`journalctl`로 본다. 서비스 파일은 로드맵 9에서 만든다. 그 전에는 1번을 `tmux` 안에서 실행해
-SSH가 끊겨도 유지되게 한다:
+`journalctl`로 본다. 직접 실행할 때는 `tmux` 안에서 실행해 SSH가 끊겨도 유지되게 한다:
 
 ```bash
 # [B]
@@ -111,6 +94,16 @@ cd ~/carlamayo && source a_venv/bin/activate && python alpamayo_server.py --vers
 A에서 실행하든 B의 명령은 바뀌지 않는다. 프롬프트·가중치·질문은 A가 보내는 요청에 실려 간다.
 B에서 바꿀 일이 있는 것은 모델 로딩 옵션(`--version`, `--quantization`, `--oom-free`)뿐이며,
 그때만 서버를 재시작한다.
+
+### 모델 없이 네트워크 경로만 먼저 확인하기
+
+```bash
+# [B]  GPU·가중치 없이 가짜 모델 서빙
+python alpamayo_server.py --fake --host 172.31.20.213 --port 50051
+# [A]
+nc -zv 172.31.20.213 50051
+```
+왕복 검증 스니펫은 [deploy/aws/README.md](../deploy/aws/README.md) 참조.
 
 ---
 
@@ -127,7 +120,7 @@ B에서 open-loop(아래 §4 경로 1)를 돌리려면 그 데이터를 B로 복
 
 ```bash
 # [A]
-rsync -avz --progress ~/carlamayo/carla_data/ ubuntu@172.31.20.213:~/carlamayo/carla_data/
+deploy/scripts/sync-dataset-to-inference-host.sh          # rsync → ubuntu@172.31.20.213:~/carlamayo/carla_data/
 ```
 
 ---
@@ -136,17 +129,28 @@ rsync -avz --progress ~/carlamayo/carla_data/ ubuntu@172.31.20.213:~/carlamayo/c
 
 | 경로 | 어디 | 명령 |
 |---|---|---|
-| 경로 1: B 로컬(기본, 지금 가능) | [B] | `cd ~/carlamayo && source a_venv/bin/activate && python carlamayo.py --loop open --version 1.5 --data-root carla_data` |
-| 경로 2: A 원격(RPC 검증) | [A] | `python carlamayo.py --loop open --version 1.5 --data-root carla_data --inference-server 172.31.20.213:50051` (로드맵 4) |
-| 경로 2, 무압축 | [A] | 위 명령에 `--image-encoding raw` |
+| 경로 1: B 로컬(기본) | [B] | `cd ~/carlamayo && source a_venv/bin/activate && python carlamayo.py --loop open --version 1.5 --data-root carla_data` |
+| 경로 2: A 원격(RPC 검증) | [A] | `python carlamayo.py --loop open --version 1.5 --data-root carla_data --inference-server 172.31.20.213:50051` |
+| 경로 2, 무압축 | [A] | 위 명령에 `--image-encoding raw_rgb8` |
 
-출력: 실행한 인스턴스의 `~/carlamayo/runs/<run_id>/carla_alpamayo_open_loop_result.mp4` (로드맵 1b 이전에는 `~/carlamayo/` 바로 아래)
+출력: 실행한 인스턴스의 `~/carlamayo/runs/<run_id>/carla_alpamayo_open_loop_result.mp4`, `predictions.npz`
+
+### parity 검사 (경로 1과 경로 2가 같은 궤적을 내는지)
+
+```bash
+# [B] 경로 1 실행 → runs/<run_local>  ;  [A] 경로 2 실행(raw) → runs/<run_remote>
+# [A] B의 예측을 가져와 비교
+rsync -avz ubuntu@172.31.20.213:~/carlamayo/runs/<run_local>/ runs/<run_local>/
+python tools/compare_predictions.py runs/<run_local> runs/<run_remote>          # raw: 거의 0 기대
+python tools/compare_predictions.py runs/<run_local> runs/<run_remote_jpeg> --atol 1   # JPEG: 차이 측정
+```
 
 ---
 
 ## 5. closed-loop  [A]
 
 DCV 세션 안의 터미널에서 실행한다. SSH 터미널에서 실행하려면 먼저 `export DISPLAY=:0`.
+pygame 창은 기본으로 켜진다(`--no-pygame-ui`로 끔).
 
 ```bash
 cd ~/carlamayo && source venv-sim/bin/activate && export CARLA_ROOT=~/carla
@@ -154,80 +158,86 @@ cd ~/carlamayo && source venv-sim/bin/activate && export CARLA_ROOT=~/carla
 
 | 모드 | 명령 |
 |---|---|
-| normal | `python carlamayo.py --loop closed --version 1.5 --async --inference-server 172.31.20.213:50051` (로드맵 4) |
-| normal, UI 끔 | 위 + `--no-pygame-ui` (로드맵 7) |
-| navigation, 초기 지시 | 위 + `--mode navigation --navigation-text "Turn right in 30m" --navigation-weight 1.0` |
-| navigation + CFG | 위 + `--mode navigation --navigation-weight 1.5` (UI 입력창에 `텍스트 \| 1.5`) |
+| normal | `python carlamayo.py --loop closed --version 1.5 --async --inference-server 172.31.20.213:50051` |
+| normal, 창 없이 | 위 + `--no-pygame-ui` |
+| navigation, 초기 지시 | 위 + `--mode navigation --navigation-text "Turn right in 30m"` (바로 주행 시작) |
+| navigation, 창에서 첫 지시 입력 | 위 + `--mode navigation` (정지 상태로 시작, 입력 후 Ctrl+P) |
+| navigation + CFG | 위 + `--mode navigation --navigation-text "Turn right in 30m" --navigation-weight 1.5` (창 입력창에는 `텍스트 \| 1.5`) |
 | vqa | 위 + `--mode vqa --vqa-question "What is ahead?"` (차량은 정지, 답은 패널·터미널) |
-| 첫 프롬프트를 UI에서 받고 시작 | 위 + `--start-paused` (로드맵 7) |
-| 결과 폴더 이름에 꼬리표 | 위 + `--run-tag cfg15` |
-| 결과 폴더 없이 업스트림처럼 현재 폴더에 저장 | 위 + `--no-run-dir` |
-| 프로파일링 끄기 | 위 + `--no-profile` (로드맵 6b, 기본은 켜짐) |
+| 강제로 정지 상태에서 시작 / 절대 정지 안 함 | 위 + `--start-paused` / `--no-start-paused` |
+| 결과 폴더 꼬리표 | 위 + `--run-tag cfg15` |
+| 오래된 궤적 정지 기준 바꾸기 | 위 + `--trajectory-max-age-sec 8` (기본 6, 0이면 끔) |
+| 요청 타임아웃 | 위 + `--rpc-timeout-sec 60` (기본 120) |
 
 UI 조작: `Enter` 프롬프트 적용, `Ctrl+P` 일시정지/재개(시뮬 세계 전체 정지), `Esc` 종료.
-출력: `~/carlamayo/runs/<run_id>/` 안에 영상 2개, `args.json`, `log.txt`, `profile_client*.csv` (로드맵 1b·6b 이전에는 `~/carlamayo/` 바로 아래 영상만)
+출력: `~/carlamayo/runs/<run_id>/` 안에 영상 2개(`*_result.mp4`, `*_pygame_ui.mp4`), `args.json`,
+`log.txt`, `profile_client*.csv`
 
-분리 구현 전(지금)에 업스트림 그대로 돌려 보려면 A에 모델 환경까지 갖추고 `--inference-server`
-없이 실행한다. A의 24 GB로는 1.5가 빠듯하므로 `--quantization`을 권한다.
+업스트림처럼 A 한 대에서 모델까지 돌리려면 `--inference-server`를 빼고 A에 모델 환경을 갖춘다
+([environment-setup.md §3.1](environment-setup.md)). A의 24 GB로는 1.5가 빠듯하므로 `--quantization` 권장.
 
 ---
 
 ## 6. live-open-loop  [A]
 
-오토파일럿이 운전하고 모델은 관찰만 한다(§0 용어 표).
+오토파일럿이 운전하고 모델은 관찰만 한다(§0 용어 표). 같은 pygame 창이 뜬다.
 
 ```bash
-python carlamayo.py --loop live-open --version 1.5 --async --inference-server 172.31.20.213:50051   # (로드맵 4)
+python carlamayo.py --loop live-open --version 1.5 --async --inference-server 172.31.20.213:50051
 ```
-출력: `~/carlamayo/runs/<run_id>/carla_alpamayo_live_open_loop_result.mp4` (로드맵 1b 이전에는 `~/carlamayo/` 바로 아래)
+출력: `~/carlamayo/runs/<run_id>/carla_alpamayo_live_open_loop_result.mp4`, `..._pygame_ui.mp4`
 
 ---
 
-## 7. 프로파일 분석 (로드맵 6b)
+## 7. 프로파일 분석
 
 실행이 끝나면 A에서 B의 서버 기록을 같은 이름의 폴더로 가져와 분석한다. `<run_id>`는 실행 시
-터미널 첫 줄에 출력되는 폴더명이다(`ls -t runs | head -1`로도 확인).
+터미널 첫 줄에 출력된다(`ls -t runs | head -1`로도 확인).
 
 ```bash
 # [A]
-cd ~/carlamayo
+cd ~/carlamayo && source venv-sim/bin/activate
 tools/fetch_server_profile.sh <run_id>            # B의 profile_server*.csv → runs/<run_id>/
 python tools/analyze_run.py runs/<run_id>         # → runs/<run_id>/summary.md, plots/*.png
-python tools/analyze_run.py compare runs/<id1> runs/<id2>   # 여러 실행 비교표
+python tools/analyze_run.py compare runs/<id1> runs/<id2>   # 여러 실행 비교표 → compare.md
 ```
 
+`summary.md`에는 실행 정보, headline(왕복 시간·추론 시간·오버헤드·요청 크기·업로드 대역폭·
+실시간 비율·궤적 나이 등), 파일별 count/mean/std/min/p50/p95/max 표, 그래프 링크가 들어간다.
 B에서 open-loop를 로컬로 돌린 경우(§4 경로 1)는 B에서 바로 `python tools/analyze_run.py runs/<run_id>`.
 
 ---
 
-## 7b. 결과 가져오기
+## 8. 결과 가져오기
 
 로컬 PC에서 실행한다. `<A>`/`<B>`는 SSH로 접속할 때 쓰는 주소(공인 IP 또는 호스트명)다.
 
 ```bash
 scp -r ubuntu@<A>:~/carlamayo/runs/<run_id> ./results/     # closed, live-open, A 원격 open-loop
 scp -r ubuntu@<B>:~/carlamayo/runs/<run_id> ./results/     # B 로컬 open-loop
-# 로드맵 1b 이전(폴더 없음): scp ubuntu@<A>:~/carlamayo/carla_alpamayo_*_result*.mp4 ./results/
 ```
 
 ---
 
-## 8. 상태 확인·문제 해결
+## 9. 상태 확인·문제 해결
 
 | 목적 | 어디 | 명령 |
 |---|---|---|
 | 서버 포트 열림 | [A] | `nc -zv 172.31.20.213 50051` |
-| 서버 health | [A] | `grpc_health_probe -addr=172.31.20.213:50051` (로드맵 5) |
+| 서버 health | [A] | `python -c "import grpc; from grpc_health.v1 import health_pb2, health_pb2_grpc; print(health_pb2_grpc.HealthStub(grpc.insecure_channel('172.31.20.213:50051')).Check(health_pb2.HealthCheckRequest()))"` (`pip install grpcio-health-checking` 필요) |
 | GPU | [A]/[B] | `nvidia-smi` |
-| 서버 로그 | [B] | `journalctl -u alpamayo-server -f` (systemd 사용 시) |
+| 서버 로그 | [B] | `journalctl -u alpamayo-server -f` (systemd) 또는 `tmux attach -t server` |
 | CARLA 응답 | [A] | `python -c "import carla; c=carla.Client('localhost',2000); c.set_timeout(5); print(c.get_server_version())"` |
-| pygame 창이 안 뜸 | [A] | DCV 세션 터미널에서 실행하거나 `export DISPLAY=:0` |
+| pygame 창이 안 뜸 | [A] | DCV 세션 터미널에서 실행하거나 `export DISPLAY=:0`, 또는 `--no-pygame-ui` |
 | `agents.navigation.controller` 없음 | [A] | `export CARLA_ROOT=~/carla` |
-| 서버 재시작 중 클라이언트 | [A] | 오류 출력 후 자동 재접속(로드맵 4). 궤적 나이 3 s 초과 시 정지(로드맵 6) |
+| "server serves Alpamayo '2' but --version '1.5'" | [A] | B의 서버 `--version`과 A의 `--version`을 맞춘다 |
+| "NUM_FRAMES: client 4 != server ..." | [A] | 두 호스트의 `module/config.py`가 다르다. 같은 커밋으로 맞춘다 |
+| 서버 재시작 중 클라이언트 | [A] | 오류 출력 후 다음 요청에서 자동 재접속. 궤적 나이 6 s 초과 시 정지 |
+| gRPC 스텁 오류 | 양쪽 | `tools/gen_proto.sh` 후 커밋(CI가 검사) |
 
 ---
 
-## 9. 종료
+## 10. 종료
 
 | 어디 | 명령 |
 |---|---|
@@ -237,7 +247,7 @@ scp -r ubuntu@<B>:~/carlamayo/runs/<run_id> ./results/     # B 로컬 open-loop
 
 ---
 
-## 10. 공식 Alpamayo 1.5 노트북  [B]
+## 11. 공식 Alpamayo 1.5 노트북  [B]
 
 [alpamayo15-notebooks-guide.md](alpamayo15-notebooks-guide.md) 참조.
 
