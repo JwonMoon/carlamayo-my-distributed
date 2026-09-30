@@ -1,0 +1,132 @@
+// Carlamayo remote inference contract between the CARLA sim host (client) and the
+// Alpamayo inference host (server). See docs/distributed-architecture.md §3 and §7.
+//
+// Regenerate the Python stubs with:  tools/gen_proto.sh
+syntax = "proto3";
+
+package carlamayo.v1;
+
+service AlpamayoInference {
+  // Handshake: which model is loaded, its camera rig and capabilities, and the
+  // config values the client must match (frames, history, image size).
+  rpc GetModelInfo(GetModelInfoRequest) returns (ModelInfo);
+  // Trajectory inference (normal / navigation / navigation+CFG).
+  rpc Predict(PredictRequest) returns (PredictResponse);
+  // Visual question answering (text only, no trajectory).
+  rpc AnswerQuestion(VqaRequest) returns (VqaResponse);
+}
+
+message GetModelInfoRequest {
+  string client_protocol_version = 1;
+}
+
+message CameraConfig {
+  string name = 1;
+  double x = 2;
+  double y = 3;
+  double z = 4;
+  double pitch = 5;
+  double yaw = 6;
+  double fov = 7;
+}
+
+message ModelInfo {
+  string protocol_version = 1;
+  string version = 2;            // "1" | "1.5" | "2"
+  string model_id = 3;
+  string display_name = 4;
+  repeated CameraConfig cameras = 5;   // order == camera axis of the image stack
+  repeated int32 camera_indices = 6;
+  int32 viz_camera_slot = 7;
+  bool supports_navigation = 8;
+  bool supports_vqa = 9;
+  bool supports_oom_free = 10;
+  bool quantization = 11;
+  bool oom_free = 12;
+  string device_map = 13;
+  int32 num_frames = 14;
+  int32 num_history = 15;
+  int32 img_height = 16;
+  int32 img_width = 17;
+  int32 num_traj_samples = 18;
+  bool warmed_up = 19;
+  double vram_allocated_gb = 20;
+  string server_git_sha = 21;
+  repeated string image_encodings = 22;  // encodings the server accepts
+}
+
+// Dense array: C-order, little-endian bytes. dtype is a numpy dtype string.
+message Tensor {
+  repeated int32 shape = 1;
+  string dtype = 2;
+  bytes data = 3;
+}
+
+// One camera image. encoding: "jpeg" (RGB decoded server-side) | "raw_rgb8".
+message ImageFrame {
+  bytes data = 1;
+  string encoding = 2;
+  int32 height = 3;
+  int32 width = 4;
+}
+
+// frames are camera-major, then time: index = cam * num_frames + frame.
+message ImageStack {
+  int32 num_cameras = 1;
+  int32 num_frames = 2;
+  repeated ImageFrame frames = 3;
+}
+
+message ClientMeta {
+  string request_id = 1;
+  int64 frame = 2;
+  int32 prompt_revision = 3;
+  int32 respawn_revision = 4;
+  string run_id = 5;   // client's run folder name; the server mirrors it (docs §9)
+}
+
+message PredictRequest {
+  ClientMeta meta = 1;
+  ImageStack images = 2;
+  Tensor history_xyz = 3;    // float32 (num_history, 3)
+  Tensor history_rot = 4;    // float32 (num_history, 3, 3)
+  int64 t0_us = 5;
+  string navigation_text = 6;
+  double navigation_weight = 7;
+  optional int64 seed = 8;
+}
+
+message Timings {
+  double decode_sec = 1;
+  double prepare_sec = 2;
+  double inference_sec = 3;
+  double total_sec = 4;
+  int32 vlm_generate_calls = 5;
+  double vlm_generate_last_sec = 6;
+  double gpu_mem_allocated_gb = 7;
+  double gpu_mem_peak_gb = 8;
+}
+
+message PredictResponse {
+  ClientMeta meta = 1;
+  Tensor pred_xyz = 2;       // float32, model-native shape e.g. (1, 1, S, T, 3)
+  string cot_text = 3;
+  Timings timings = 4;
+}
+
+message VqaRequest {
+  ClientMeta meta = 1;
+  ImageStack images = 2;
+  Tensor history_xyz = 3;
+  Tensor history_rot = 4;
+  int64 t0_us = 5;
+  string question = 6;
+  optional int64 seed = 7;
+}
+
+message VqaResponse {
+  ClientMeta meta = 1;
+  string answer = 2;
+  string raw_answer = 3;
+  Timings timings = 4;
+}

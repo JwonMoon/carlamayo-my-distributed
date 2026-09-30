@@ -17,6 +17,7 @@
 |---|---|---|
 | 2026-09-30 | 가져온 직후, CI와 같은 의존성(CPU torch, numpy, scipy, pillow, opencv-headless, pytest), `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests` | **55 passed** |
 | 2026-09-30 | 로드맵 1·1b 구현 후, 같은 조건 | **79 passed** |
+| 2026-09-30 | 로드맵 2·3 구현 후, 같은 조건 + grpcio/grpcio-tools/grpcio-health-checking/protobuf | **104 passed** |
 
 ## 변경 표
 
@@ -45,5 +46,9 @@
 | 2026-09-30 | 실행 결과 폴더 | `carlamayo.py` | `--runs-root`, `--run-tag`, `--no-run-dir` 플래그. `main()`이 폴더 생성 → `log.txt` 시작 → `args.json` 기록 → `args.run_dir` 전달 → 종료 시 닫기. 첫 줄에 `Run folder: ... (run_id=...)` 출력 | 같음 | 1b |
 | 2026-09-30 | 실행 결과 폴더 | `module/loops/{closed_loop,live_open_loop,open_loop}.py` | `output_video`를 `resolve_output_video(args, cfg.*_OUTPUT_VIDEO)`로. run 폴더가 없으면(직접 `run()` 호출) 업스트림과 동일하게 현재 디렉터리 | 영상이 run 폴더에 저장 | 1b |
 | 2026-09-30 | 실행 결과 폴더 | `.gitignore`, `tests/test_run_dir.py`(신규), `tests/test_carlamayo_launcher.py` | `runs/` 무시. 폴더명·유일성·args.json·로그·경로 해석 테스트, 런처가 run 폴더를 만들어 루프에 넘기는지 테스트 | | 1b |
+| 2026-09-30 | RPC 계약 | `module/remote/alpamayo_inference.proto`(신규), `module/remote/alpamayo_inference_pb2*.py`(생성), `tools/gen_proto.sh` | `GetModelInfo`/`Predict`/`AnswerQuestion` 서비스, `ModelInfo`·`ImageStack`·`Tensor`·`ClientMeta(run_id 포함)`·`Timings` 메시지 | 두 호스트 간 계약, [ADR 0002](adr/0002-rpc-transport-grpc.md) | 2 |
+| 2026-09-30 | RPC 계약 | `module/remote/codec.py`(신규), `tests/test_remote_codec.py` | 이미지 스택 JPEG/raw 인코딩·디코딩(RGB 유지), Tensor 직렬화, PSNR. torch 비의존 | [ADR 0003](adr/0003-image-encoding-jpeg-default.md) | 2 |
+| 2026-09-30 | 추론 서버 | `module/remote/fake_adapter.py`(신규) | 입력의 결정적 함수로 궤적을 돌려주는 torch-free 어댑터(테스트·드라이런용, `sleep_sec`/`fail_with` 옵션) | GPU 없이 RPC 경로 검증 | 3 |
+| 2026-09-30 | 추론 서버 | `module/remote/server.py`(신규), `tests/test_remote_server.py` | `AlpamayoServicer`(디코드 → `prepare_model_input` → `run_inference`/`run_vqa`, 모델 lock, 미워밍업 `FAILED_PRECONDITION`, 동시 요청 `RESOURCE_EXHAUSTED`, 잘못된 페이로드 `INVALID_ARGUMENT`, cuSOLVER→MAGMA 재시도, run_id별 `runs/<run_id>/server_info.json`, `on_request` 훅), `create_server`(헬스 서비스, 512 MB 메시지, keepalive), `build_model_info` | 서버 핵심. `closed_loop.py:244-256`의 linalg 재시도 로직을 서버로 이동 | 3 |
 
-> 위 변경 후 `python -m pytest -q tests`: **79 passed** (업스트림 55 + 신규 24).
+> 위 변경 후 `python -m pytest -q tests`: **104 passed**.

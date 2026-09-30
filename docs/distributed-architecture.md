@@ -279,7 +279,7 @@ NICE DCV가 A에 이미 설정되어 있으므로 그것을 쓴다.
 
 ---
 
-## 7. 인터페이스 계약 초안 (`proto/alpamayo_inference.proto`)
+## 7. 인터페이스 계약 (`module/remote/alpamayo_inference.proto`)
 
 ```proto
 syntax = "proto3";

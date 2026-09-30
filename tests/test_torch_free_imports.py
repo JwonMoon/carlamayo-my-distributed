@@ -29,6 +29,7 @@ TORCH_FREE_MODULES = [
     "module.vlm_generate_optimization",
     "module.data_collection",
     "module.run_dir",
+    "module.remote.codec",
 ]
 
 

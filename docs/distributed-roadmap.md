@@ -35,16 +35,16 @@
 | 원격 연동 | 4단계에서 `ClientMeta.run_id`로 서버에 전달(6b 참조). B 로컬 open-loop는 B가 스스로 run_id 생성 |
 | 테스트 | 폴더명 규칙, tag 유무, `args.json` 내용, 두 번 만들면 다른 폴더 |
 
-## ☐ 2. proto + codec
+## ☑ 2. proto + codec
 
 | 항목 | 내용 |
 |---|---|
-| `proto/alpamayo_inference.proto` | [distributed-architecture.md §7](distributed-architecture.md) 그대로 |
+| `module/remote/alpamayo_inference.proto` | [distributed-architecture.md §7](distributed-architecture.md) 그대로 (+ `ClientMeta.run_id`, `Timings.gpu_mem_*`). 스텁이 패키지 상대 import를 쓰도록 proto를 `module/remote/` 안에 둠 |
 | `module/remote/codec.py` | `encode_image_stack(images_array, encoding, jpeg_quality)`, `decode_image_stack(stack) -> np.ndarray`, `tensor_to_proto`, `proto_to_tensor`. **torch·carla 비의존** |
-| 생성 스텁 | `python -m grpc_tools.protoc -I proto --python_out=module/remote --grpc_python_out=module/remote proto/alpamayo_inference.proto` 결과를 커밋 |
+| 생성 스텁 | `tools/gen_proto.sh` (`grpc_tools.protoc -I . ... module/remote/alpamayo_inference.proto`) 결과 `module/remote/alpamayo_inference_pb2*.py`를 커밋 |
 | `tests/test_remote_codec.py` | raw 왕복 비트 동일, JPEG q95 왕복 PSNR > 40 dB·shape/dtype 유지·RGB 채널 순서 보존, Tensor 왕복 `(16,3)`/`(16,3,3)`/`(1,1,1,64,3)`, 카메라·프레임 수 불일치 거부 |
 
-## ☐ 3. FakeAdapter + 서버 서비서 + in-process 테스트
+## ☑ 3. FakeAdapter + 서버 서비서 + in-process 테스트
 
 | 항목 | 내용 |
 |---|---|
