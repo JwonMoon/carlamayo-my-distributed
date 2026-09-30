@@ -17,6 +17,33 @@
 > Each card covers architecture, inputs/outputs, licensing, and tested hardware. This
 > repository focuses on CARLA setup, data collection, and open/closed/live-open inference.
 
+## 이 포크에 대하여 (carlamayo-my-distributed)
+
+이 저장소는 [aveeslab/Carlamayo](https://github.com/aveeslab/Carlamayo)를 히스토리째 가져와
+**CARLA 인스턴스와 Alpamayo 인스턴스를 분리해 실행**하도록 개조하는 작업 공간이다.
+분석·설계·운영 문서(한국어)는 `docs/` 아래에 있다.
+
+| 문서 | 내용 |
+|---|---|
+| [docs/architecture-analysis.md](docs/architecture-analysis.md) | 현재(단일 호스트) 구조 분석: 배포·모듈 의존·시퀀스·데이터 크기·타이밍·UI |
+| [docs/distributed-architecture.md](docs/distributed-architecture.md) | 분리 후 구조, 인스턴스 간 데이터 교환 명세, 전/후 비교, RPC 계약 초안, 리스크 |
+| [docs/adr/](docs/adr/README.md) | 설계 결정 기록: 왜 이렇게 골랐고 다른 후보는 왜 아닌지 |
+| [docs/distributed-roadmap.md](docs/distributed-roadmap.md) | 분리 구현 단계별 작업 목록 |
+| [docs/cheatsheet.md](docs/cheatsheet.md) | 어느 인스턴스에서 어떤 명령을 치는지 |
+| [docs/changes-from-upstream.md](docs/changes-from-upstream.md) | 업스트림 대비 무엇을 어디에 왜 바꿨는지 |
+| [docs/alpamayo15-notebooks-guide.md](docs/alpamayo15-notebooks-guide.md) | 공식 Alpamayo 1.5 노트북 안내와 g6e.xlarge 실행 가능성 |
+| [docs/diagrams/](docs/diagrams/) | 위 문서의 다이어그램 SVG |
+
+업스트림 변경을 따라가려면:
+
+```bash
+git remote add upstream https://github.com/aveeslab/Carlamayo.git   # 최초 1회
+git fetch upstream
+git merge upstream/main
+```
+
+---
+
 ## Alpamayo Versions
 
 Pick the model with `--version`. All three are tracked as git submodules under
