@@ -574,7 +574,7 @@ def run(adapter, args):
                         print(f"    CoT: {current_cot[:60]}...")
                         print(
                             f"    Selected traj sample: {current_selected_traj_idx}/"
-                            f"{cfg.NUM_TRAJ_SAMPLES - 1}"
+                            f"{len(traj_samples) - 1}"
                         )
                     else:
                         print(f"[Frame {frame_count}] Inference error: {latest_result['error']}")
@@ -654,7 +654,7 @@ def run(adapter, args):
                             )
                         print(
                             f"    Selected traj sample: {current_selected_traj_idx}/"
-                            f"{cfg.NUM_TRAJ_SAMPLES - 1}"
+                            f"{len(traj_samples) - 1}"
                         )
 
             if current_trajectory is not None and trajectory_is_stale(

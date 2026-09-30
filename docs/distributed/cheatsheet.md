@@ -114,8 +114,15 @@ cd ~/carlamayo && source a_venv/bin/activate && python alpamayo_server.py --vers
 
 **B에서 할 일은 이것뿐이다.** 아래 §4~6의 open/closed/live-open, navigation, CFG, VQA 어느 것을
 A에서 실행하든 B의 명령은 바뀌지 않는다. 프롬프트·가중치·질문은 A가 보내는 요청에 실려 간다.
-B에서 바꿀 일이 있는 것은 모델 로딩 옵션(`--version`, `--quantization`, `--oom-free`)뿐이며,
-그때만 서버를 재시작한다.
+B에서 바꿀 일이 있는 것은 모델 로딩 옵션(`--version`, `--quantization`, `--oom-free`)과
+궤적 샘플 수(`--num-traj-samples N`, 기본 1)뿐이며, 그때만 서버를 재시작한다. 샘플을 여러 개
+뽑으면 화면에 흰 선(후보)과 빨간 선(따라가는 궤적)이 함께 그려진다. VRAM은 공식 기준 1샘플
+약 24 GB, 16샘플 약 40 GB이고 CFG와 같이 쓰면 60 GB 이상이므로 B(48 GB)에서는 4~8 정도가 현실적이다.
+
+```bash
+# [B] 예: 궤적 4개씩 뽑기
+python alpamayo_server.py --version 1.5 --host 172.31.20.213 --port 50051 --num-traj-samples 4
+```
 
 ### 모델 없이 네트워크 경로만 먼저 확인하기
 

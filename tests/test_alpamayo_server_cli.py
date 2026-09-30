@@ -19,6 +19,34 @@ def test_parser_defaults():
     assert args.no_warmup is False and args.device_map == "auto"
 
 
+def test_num_traj_samples_flag_overrides_config_and_is_advertised(tmp_path, monkeypatch):
+    import grpc
+
+    from module import config as cfg
+    from module.remote import alpamayo_inference_pb2 as pb
+    from module.remote import alpamayo_inference_pb2_grpc as pb_grpc
+
+    monkeypatch.setattr(cfg, "NUM_TRAJ_SAMPLES", 1)
+    args = alpamayo_server.build_parser().parse_args(
+        ["--fake", "--host", "127.0.0.1", "--port", "0", "--num-traj-samples", "4",
+         "--runs-root", str(tmp_path), "--no-profile"]
+    )
+    assert alpamayo_server.apply_server_config(args) == 4
+    assert cfg.NUM_TRAJ_SAMPLES == 4
+    server, port, servicer = alpamayo_server.build_server(args)
+    server.start()
+    try:
+        stub = pb_grpc.AlpamayoInferenceStub(grpc.insecure_channel(f"127.0.0.1:{port}"))
+        info = stub.GetModelInfo(pb.GetModelInfoRequest())
+        assert info.num_traj_samples == 4
+    finally:
+        server.stop(grace=None)
+
+    bad = alpamayo_server.build_parser().parse_args(["--fake", "--num-traj-samples", "0"])
+    with pytest.raises(SystemExit, match=">= 1"):
+        alpamayo_server.apply_server_config(bad)
+
+
 def test_version_required_without_fake():
     args = alpamayo_server.build_parser().parse_args([])
     with pytest.raises(SystemExit, match="--version is required"):

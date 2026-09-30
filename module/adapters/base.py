@@ -49,6 +49,13 @@ class AlpamayoAdapter(ABC):
     def num_cameras(self) -> int:
         return len(self.source_camera_configs)
 
+    @property
+    def num_traj_samples(self) -> int:
+        """Trajectory samples per inference (local: module.config; remote: from the server)."""
+        from module import config as cfg
+
+        return int(cfg.NUM_TRAJ_SAMPLES)
+
     def runtime_summary(self) -> str:
         """One-line description of where the model runs and how much VRAM it uses."""
         try:

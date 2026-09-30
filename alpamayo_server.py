@@ -63,6 +63,11 @@ def build_parser():
                         default="magma")
     parser.add_argument("--no-warmup", action="store_true",
                         help="Skip the dummy warm-up inference after loading.")
+    parser.add_argument("--num-traj-samples", type=int, default=None, metavar="N",
+                        help="Trajectory samples per inference (default: config.NUM_TRAJ_SAMPLES=%d). "
+                             "The client follows the sample closest to its previous one and draws "
+                             "the others in white. VRAM grows with N (official: 1->24 GB, 16->40 GB)."
+                             % cfg.NUM_TRAJ_SAMPLES)
 
     # Per-run mirroring and profiling (see docs/distributed/distributed-architecture.md §9).
     parser.add_argument("--runs-root", default="runs",
@@ -73,6 +78,15 @@ def build_parser():
     parser.add_argument("--profile-interval-sec", type=float, default=1.0,
                         help="System resource sampling period for profile_server_sys.csv.")
     return parser
+
+
+def apply_server_config(args):
+    """Apply CLI overrides to module.config before any adapter reads them."""
+    if args.num_traj_samples is not None:
+        if args.num_traj_samples < 1:
+            raise SystemExit("--num-traj-samples must be >= 1")
+        cfg.NUM_TRAJ_SAMPLES = int(args.num_traj_samples)
+    return cfg.NUM_TRAJ_SAMPLES
 
 
 def load_adapter(args):
@@ -123,6 +137,7 @@ def warm_up(adapter, model, processor):
 
 def build_server(args, adapter=None, model=None, processor=None):
     """Create servicer + gRPC server (not started). Returns ``(server, port, servicer)``."""
+    apply_server_config(args)
     if adapter is None:
         adapter, model, processor = load_adapter(args)
 
@@ -163,7 +178,8 @@ def main(argv=None):
     print(
         f"SERVING {servicer.adapter.display_name} version={servicer.adapter.version} "
         f"warmed_up=True cameras={servicer.adapter.num_cameras} "
-        f"NUM_FRAMES={cfg.NUM_FRAMES} IMG={cfg.IMG_WIDTH}x{cfg.IMG_HEIGHT}"
+        f"NUM_FRAMES={cfg.NUM_FRAMES} IMG={cfg.IMG_WIDTH}x{cfg.IMG_HEIGHT} "
+        f"num_traj_samples={cfg.NUM_TRAJ_SAMPLES}"
     )
     print(f"Clients: python carlamayo.py --loop closed --version {servicer.adapter.version} "
           f"--inference-server <this-host-ip>:{port}")

@@ -49,6 +49,8 @@ class RemoteInferenceError(RuntimeError):
 
 class RemoteAlpamayoAdapter(AlpamayoAdapter):
     is_remote = True
+    #: Plain attribute (shadows the base-class property): the server decides this value.
+    num_traj_samples: int = 1
 
     def __init__(
         self,
@@ -84,6 +86,7 @@ class RemoteAlpamayoAdapter(AlpamayoAdapter):
         self.device_map = ""
         self.server_git_sha = ""
         self.vram_allocated_gb = 0.0
+        self.num_traj_samples = int(cfg.NUM_TRAJ_SAMPLES)
         self.model_info: pb.ModelInfo | None = None
 
         self._channel: grpc.Channel | None = None
@@ -152,7 +155,6 @@ class RemoteAlpamayoAdapter(AlpamayoAdapter):
             ("NUM_HISTORY", cfg.NUM_HISTORY, info.num_history),
             ("IMG_HEIGHT", cfg.IMG_HEIGHT, info.img_height),
             ("IMG_WIDTH", cfg.IMG_WIDTH, info.img_width),
-            ("NUM_TRAJ_SAMPLES", cfg.NUM_TRAJ_SAMPLES, info.num_traj_samples),
         ):
             if int(mine) != int(theirs):
                 problems.append(f"{name}: client {mine} != server {theirs}")
@@ -178,6 +180,8 @@ class RemoteAlpamayoAdapter(AlpamayoAdapter):
         self.quantization = bool(info.quantization)
         self.oom_free = bool(info.oom_free)
         self.device_map = info.device_map
+        # Chosen server-side (alpamayo_server.py --num-traj-samples); not a client setting.
+        self.num_traj_samples = int(info.num_traj_samples) or 1
         self.server_git_sha = info.server_git_sha
         self.vram_allocated_gb = float(info.vram_allocated_gb)
 
@@ -186,6 +190,7 @@ class RemoteAlpamayoAdapter(AlpamayoAdapter):
             f"Remote inference: {self.display_name}, server VRAM {self.vram_allocated_gb:.1f} GB, "
             f"quantization={'ON' if self.quantization else 'OFF'}, "
             f"oom_free={'ON' if self.oom_free else 'OFF'}, "
+            f"traj_samples={self.num_traj_samples}, "
             f"images={self.image_encoding}"
             + (f" q{self.jpeg_quality}" if self.image_encoding == codec.ENCODING_JPEG else "")
         )

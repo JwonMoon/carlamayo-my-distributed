@@ -129,6 +129,22 @@ def test_config_mismatch_is_rejected(server, monkeypatch):
         remote.load_model()
 
 
+def test_client_adopts_server_sample_count_instead_of_rejecting(server, monkeypatch):
+    _, target = server()
+    original = srv.build_model_info
+
+    def server_with_more_samples(*a, **kw):
+        info = original(*a, **kw)
+        info.num_traj_samples = 8  # set with alpamayo_server.py --num-traj-samples 8
+        return info
+
+    monkeypatch.setattr(srv, "build_model_info", server_with_more_samples)
+    remote = _client(target)
+    remote.load_model()  # no FAILED_PRECONDITION
+    assert remote.num_traj_samples == 8
+    assert "traj_samples=8" in remote.runtime_summary()
+
+
 def test_unreachable_server_fails_fast():
     remote = _client("127.0.0.1:1", connect_timeout_sec=0.5)
     with pytest.raises(RemoteInferenceError, match="no inference server"):
