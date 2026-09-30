@@ -5,8 +5,9 @@
 정리한다. 설계 결정의 근거와 탈락 후보는 [adr/](adr/README.md)에, 구현 순서는
 [distributed-roadmap.md](distributed-roadmap.md)에 있다.
 
-> 이 문서는 설계서다. 여기 적힌 파일·플래그·RPC 이름은 아직 구현되지 않았으며 로드맵을
-> 따라 구현될 때 [changes-from-upstream.md](changes-from-upstream.md)에 반영한다.
+> 로드맵 1~9단계는 구현되어 있다(파일·플래그·RPC 이름은 실제 코드와 같다). 실제 두 인스턴스에서의
+> 실측(10단계)은 아직이며, 결과는 [changes-from-upstream.md](changes-from-upstream.md)와 이 문서의
+> "실측" 절에 추가한다.
 
 ---
 

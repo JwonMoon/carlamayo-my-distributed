@@ -33,6 +33,16 @@
 | [docs/changes-from-upstream.md](docs/changes-from-upstream.md) | 업스트림 대비 무엇을 어디에 왜 바꿨는지 |
 | [docs/alpamayo15-notebooks-guide.md](docs/alpamayo15-notebooks-guide.md) | 공식 Alpamayo 1.5 노트북 안내와 g6e.xlarge 실행 가능성 |
 | [docs/diagrams/](docs/diagrams/) | 위 문서의 다이어그램 SVG |
+| [deploy/aws/README.md](deploy/aws/README.md) | AWS 인스턴스·보안그룹·systemd·설치 스크립트 |
+
+분리 실행의 핵심 진입점:
+
+| 파일 | 역할 |
+|---|---|
+| `alpamayo_server.py` | 추론 호스트에서 모델을 한 번 로드해 gRPC로 서빙 (`--fake`로 GPU 없이 경로 검증) |
+| `carlamayo.py --inference-server HOST:PORT` | CARLA 호스트에서 기존 루프를 원격 추론으로 실행 |
+| `runs/<run_id>/` | 실행마다 영상·`args.json`·`log.txt`·프로파일 CSV가 모이는 폴더 |
+| `tools/analyze_run.py`, `tools/compare_predictions.py`, `tools/fetch_server_profile.sh` | 프로파일 요약·그래프, parity 비교, 서버 CSV 회수 |
 
 업스트림 변경을 따라가려면:
 

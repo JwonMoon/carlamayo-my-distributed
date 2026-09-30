@@ -122,7 +122,7 @@
 | `.github/workflows/ci.yml` | grpcio, grpcio-tools, protobuf 설치. 스텁 재생성 후 `git diff --exit-code module/remote/*_pb2*.py` |
 | `docs/environment-setup.md` | §3 "Combined" 환경을 두 호스트 절차로 교체 |
 
-## ☐ 9. AWS 배포 자산
+## ☑ 9. AWS 배포 자산
 
 | 파일 | 내용 |
 |---|---|
@@ -131,12 +131,12 @@
 | `deploy/scripts/` | `setup-sim-host.sh`, `setup-inference-host.sh`, `sync-dataset-to-inference-host.sh`(rsync A→B) |
 | `docs/cheatsheet.md` | 실제 명령으로 확정 |
 
-## ☐ 10. 검증
+## ◐ 10. 검증 — 도구(`predictions.npz`, `tools/compare_predictions.py`, 스모크 테스트)는 완료, 실제 두 인스턴스에서의 실행·실측은 미완
 
 | 항목 | 내용 |
 |---|---|
-| `tools/parity_open_loop.py` | 같은 `carla_data/`, `seed=42`로 (1) B 로컬 (2) A 원격(raw) (3) A 원격(JPEG) 실행, 각 `predictions.npz` 저장 |
-| `tools/compare_predictions.py` | 프레임별 max abs diff, minADE 차이 표. raw는 ~1e-6 이내 기대, JPEG 차이는 기록 |
+| parity 실행 | `--loop open`이 run 폴더에 `predictions.npz`를 저장(seed=42). (1) B 로컬 (2) A 원격(`--image-encoding raw_rgb8`) (3) A 원격(JPEG) 세 번 실행 |
+| `tools/compare_predictions.py run_a run_b [--atol]` | 프레임별 max abs diff·평균 xy 거리 표(`parity.md`), 비트 동일 여부, 추론 시간 비교. raw는 ~1e-6 이내 기대, JPEG 차이는 기록 |
 | closed-loop 스모크 | sync/async × normal/navigation(weight 1.0, 1.5)/vqa 각 2분 주행, 충돌·리스폰 동작, 서버 재시작 중 클라이언트 생존, 궤적 나이 초과 시 정지 |
 | live-open 스모크 | async, UI 표시 |
 | 프로파일 확인 | 각 스모크 run의 `runs/<run_id>/`에 A·B CSV가 모두 있고 `analyze_run.py`가 `summary.md`·`plots/`를 만드는지. 요청당 인코딩/전송/디코드/추론/총 시간, 요청 크기, A CPU, B VRAM 요약을 `docs/distributed-architecture.md`에 "실측" 절로 추가 |

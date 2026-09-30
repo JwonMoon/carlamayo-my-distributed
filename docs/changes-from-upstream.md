@@ -21,6 +21,7 @@
 | 2026-09-30 | 로드맵 4·5 + 프로파일링 모듈 구현 후, + psutil/nvidia-ml-py | **133 passed** |
 | 2026-09-30 | 로드맵 6·6b(루프 연결) + 루프 스모크 테스트 후 | **142 passed** |
 | 2026-09-30 | 로드맵 7·8 + analyze_run 후, + pandas/matplotlib | **149 passed** |
+| 2026-09-30 | 로드맵 9·10(도구) 후 | **153 passed** |
 
 ## 변경 표
 
@@ -69,5 +70,9 @@
 | 2026-09-30 | 문서 | `docs/navigation-mode.md`, `docs/vqa-mode.md`, `docs/inference-workflows.md` | "starts paused" 설명을 새 동작으로 갱신 | | 7 |
 | 2026-09-30 | 환경 분리 | `requirements-sim.txt`(신규), `requirements-inference.txt`(신규), `requirements-carla.txt`·`requirements-alpamayo.txt`(호환용 `-r`), `pyproject.toml`(grpcio·protobuf·psutil·nvidia-ml-py, dev에 grpcio-tools), `.github/workflows/ci.yml`(의존성 추가, 스텁 최신 검사), `docs/environment-setup.md` §3 | 호스트별 설치 프로파일 | 8 |
 | 2026-09-30 | 프로파일링 | `tools/analyze_run.py`(신규), `tools/fetch_server_profile.sh`(신규), `tests/test_analyze_run.py` | `summary.md`(run·server 정보, headline, 파일별 count/mean/std/min/p50/p95/max, status 집계)와 `plots/`(inference_time, rtt, server_breakdown, gpu_mem, cpu, net, trajectory_age, speed), `compare` 서브커맨드. B의 CSV를 rsync로 가져오는 스크립트 | 보고서용 산출물 | 6b |
+| 2026-09-30 | 버그 수정 | `module/profiling.py` | CSV float 포맷을 `%.6g`에서 소수 6자리 고정으로(epoch 시각이 한 값으로 뭉개지던 문제, 플롯 검토 중 발견) | | 6b |
+| 2026-09-30 | 배포 자산 | `deploy/aws/README.md`, `deploy/systemd/alpamayo-server.service`, `deploy/scripts/{setup-sim-host,setup-inference-host,sync-dataset-to-inference-host}.sh` | 인스턴스·보안그룹 표, systemd 유닛, 호스트별 설치 스크립트, 데이터셋 rsync, `--fake` 서버로 네트워크 경로 검증 절차 | 운영 | 9 |
+| 2026-09-30 | parity | `tools/compare_predictions.py`(신규), `tests/test_compare_predictions.py` | 두 run의 `predictions.npz`를 프레임별로 비교해 `parity.md` 작성, `--atol` 초과 시 비정상 종료 | 로컬 vs 원격, raw vs JPEG 검증 | 10 |
+| 2026-09-30 | 문서 | `docs/cheatsheet.md` | 구현된 명령으로 확정("(로드맵 N)" 표시 제거), 설치 스크립트·parity·프로파일 분석·문제 해결 항목 추가 | | 9 |
 
-> 위 변경 후 `python -m pytest -q tests`: **149 passed**.
+> 위 변경 후 `python -m pytest -q tests`: **153 passed**.

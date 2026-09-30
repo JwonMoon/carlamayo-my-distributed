@@ -21,6 +21,16 @@ def test_csv_recorder_writes_header_and_rows_in_order(tmp_path):
     assert rec.rows_written == 2
 
 
+def test_csv_recorder_keeps_epoch_and_small_durations_precise(tmp_path):
+    rec = profiling.CsvRecorder(tmp_path / "t.csv", ["wall_time", "dt"])
+    rec.put({"wall_time": 1759259000.123456, "dt": 0.000123})
+    rec.put({"wall_time": 1759259000.623456, "dt": 1.5})
+    rec.close()
+    rows = _rows(tmp_path / "t.csv")
+    assert rows[0]["wall_time"] == "1759259000.123456" and rows[1]["wall_time"] == "1759259000.623456"
+    assert rows[0]["dt"] == "0.000123" and rows[1]["dt"] == "1.5"
+
+
 def test_csv_recorder_appends_without_duplicate_header(tmp_path):
     path = tmp_path / "x.csv"
     r1 = profiling.CsvRecorder(path, ["a"]); r1.put({"a": 1}); r1.close()

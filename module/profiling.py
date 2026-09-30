@@ -87,10 +87,12 @@ class CsvRecorder:
 
 
 def _fmt(value: Any) -> Any:
-    if isinstance(value, float):
-        return f"{value:.6g}"
     if isinstance(value, bool):
         return int(value)
+    if isinstance(value, float):
+        # Fixed 6 decimals keeps microsecond precision for both durations and epoch
+        # timestamps (a %.6g would collapse 1.7e9 wall-clock values to one number).
+        return f"{value:.6f}".rstrip("0").rstrip(".") or "0"
     return value
 
 
