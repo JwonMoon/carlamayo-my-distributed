@@ -22,6 +22,27 @@
 | B | 22 | 운영자 IP, **A의 SG** | SSH, `rsync`(데이터셋·프로파일 복사) |
 | B | 50051 | **A의 SG** | gRPC 추론 |
 
+### 규칙을 넣는 두 가지 방법
+
+`launch-wizard-xx`처럼 자동 생성된 B의 그룹은 보통 사무실 IP만 허용하므로 A→B 접속이
+"connection refused"가 아니라 **응답 없이 멈춘다**(패킷이 버려짐). 해결은 둘 중 하나:
+
+1. **B에 A의 보안그룹을 추가로 연결**: 인스턴스 → 작업 → 보안 → 보안 그룹 변경 → A의 그룹
+   (`vs-advancedsw-adas-ec2`: 172.31.0.0/16 전체 TCP 허용) 추가, 기존 그룹 유지. 필요한 권한
+   `ec2:ModifyInstanceAttribute`.
+2. **B의 그룹에 규칙 추가**: 보안 그룹 → B의 그룹 → 인바운드 규칙 편집 → TCP 22, TCP 50051,
+   원본 = A의 보안그룹 ID. 필요한 권한 `ec2:AuthorizeSecurityGroupIngress`.
+
+계정에 권한이 없으면(콘솔에 `ec2:DescribeSecurityGroupRules 권한이 없습니다`) 관리자에게
+아래처럼 요청한다:
+
+> 시뮬레이터 인스턴스 A(172.31.38.219, sg-A)에서 추론 인스턴스 B(172.31.20.213, sg-B)로
+> 내부망 SSH(22)·gRPC(50051) 접속이 필요합니다. B의 보안그룹이 사무실 IP만 허용해 막혀 있습니다.
+> (1) B에 sg-A를 추가 연결하거나, (2) sg-B 인바운드에 TCP 22·50051(원본 sg-A)을 추가해
+> 주시거나, (3) 제 IAM 사용자에 `ec2:DescribeSecurityGroupRules`, `ec2:DescribeSecurityGroups`,
+> `ec2:AuthorizeSecurityGroupIngress`, `ec2:ModifyInstanceAttribute` 권한을 부여해 주세요.
+> 모두 VPC 내부 트래픽이며 외부 개방은 없습니다.
+
 CARLA 포트(2000~2002, 8000)는 어디에도 열지 않는다. 서버는 `--host 172.31.20.213`(사설 IP)으로
 바인드한다. gRPC는 평문이므로 VPC 밖으로 노출하지 않는다.
 

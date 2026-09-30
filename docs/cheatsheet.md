@@ -56,17 +56,37 @@ source ~/carlamayo/a_venv/bin/activate
 hf auth login                                        # 모델 게이트 승인 후 (토큰은 B에만)
 ```
 
-### A → B 파일 복사 준비 (한 번만)
+### A → B 접속 준비 (한 번만)
+
+**1) 보안그룹: B가 A에서 오는 연결을 받도록 한다.** 인바운드 규칙은 "누가 이 인스턴스의 어느
+포트로 들어와도 되는가"이고, 아웃바운드(나가는 쪽)는 기본값이 전부 허용이라 손댈 일이 없다.
+A→B에 필요한 것은 **B의 인바운드**뿐이다. 둘 중 하나:
+
+| 방법 | 어디서 | 내용 |
+|---|---|---|
+| 1 (간단) | EC2 → 인스턴스 → B → 작업 → 보안 → 보안 그룹 변경 | A가 쓰는 보안그룹(`vs-advancedsw-adas-ec2`, 내부망 전체 TCP 허용)을 B에 **추가** (기존 그룹 유지) |
+| 2 (최소 개방) | EC2 → 보안 그룹 → B의 그룹 → 인바운드 규칙 편집 | TCP 22, TCP 50051 두 규칙 추가, 원본 = A의 보안그룹 ID |
+
+권한 오류(`ec2:DescribeSecurityGroupRules ...`)가 나면 관리자에게 위 중 하나를 요청한다
+([deploy/aws/README.md](../deploy/aws/README.md)에 요청 문구 예시).
+
+**2) SSH 키: 기존 인스턴스 키페어(pem)를 그대로 쓴다.**
 
 ```bash
-# [A]
-ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519      # 이미 있으면 생략
-cat ~/.ssh/id_ed25519.pub                             # 출력을 복사
-# [B]
-echo '<A의 공개키 한 줄>' >> ~/.ssh/authorized_keys
+# [A]  pem을 A에 두고 config로 자동 사용
+chmod 400 ~/.ssh/<키페어>.pem
+cat >> ~/.ssh/config <<'EOF'
+Host 172.31.20.213
+    User ubuntu
+    IdentityFile ~/.ssh/<키페어>.pem
+EOF
+chmod 600 ~/.ssh/config
 # [A] 확인
-ssh ubuntu@172.31.20.213 hostname
+nc -zv 172.31.20.213 22            # succeeded! (멈추면 1)의 보안그룹 문제)
+ssh ubuntu@172.31.20.213 hostname  # ip-172-31-20-213
 ```
+
+pem 없이 쓰려면 `ssh-copy-id -i ~/.ssh/id_ed25519.pub -o IdentityFile=~/.ssh/<키페어>.pem ubuntu@172.31.20.213`.
 
 ---
 

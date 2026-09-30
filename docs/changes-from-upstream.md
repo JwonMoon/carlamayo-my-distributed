@@ -74,5 +74,7 @@
 | 2026-09-30 | 배포 자산 | `deploy/aws/README.md`, `deploy/systemd/alpamayo-server.service`, `deploy/scripts/{setup-sim-host,setup-inference-host,sync-dataset-to-inference-host}.sh` | 인스턴스·보안그룹 표, systemd 유닛, 호스트별 설치 스크립트, 데이터셋 rsync, `--fake` 서버로 네트워크 경로 검증 절차 | 운영 | 9 |
 | 2026-09-30 | parity | `tools/compare_predictions.py`(신규), `tests/test_compare_predictions.py` | 두 run의 `predictions.npz`를 프레임별로 비교해 `parity.md` 작성, `--atol` 초과 시 비정상 종료 | 로컬 vs 원격, raw vs JPEG 검증 | 10 |
 | 2026-09-30 | 문서 | `docs/cheatsheet.md` | 구현된 명령으로 확정("(로드맵 N)" 표시 제거), 설치 스크립트·parity·프로파일 분석·문제 해결 항목 추가 | | 9 |
+| 2026-09-30 | 버그 수정 | `deploy/scripts/setup-inference-host.sh`, `docs/environment-setup.md` | uv 파이썬에는 `ensurepip`/`pip`이 없어 스크립트가 중단되던 문제 → `uv pip install`로 교체, 설치 후 import 확인 추가. 실제 B 인스턴스에서 발견 | | 9 |
+| 2026-09-30 | 문서 | `docs/cheatsheet.md`, `deploy/aws/README.md` | A→B 접속 준비를 "보안그룹(두 방법, 인바운드/아웃바운드 설명, 권한 요청 문구)" + "기존 키페어 pem으로 SSH config" 절차로 갱신. 실제 인스턴스에서 A→B가 멈추던(hang) 원인이 B의 launch-wizard 그룹임을 확인 | 운영 중 발견 | 9 |
 
 > 위 변경 후 `python -m pytest -q tests`: **153 passed**.

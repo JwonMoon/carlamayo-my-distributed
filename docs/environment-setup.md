@@ -91,13 +91,13 @@ all three share the same pinned dependencies, so they can coexist in one env:
 uv venv a_venv --python 3.12
 source a_venv/bin/activate
 uv sync --active
-python -m ensurepip --upgrade
+# uv-managed Pythons have no pip/ensurepip: install with `uv pip` inside the venv.
 # Install one or more Alpamayo versions (--no-deps; shared torch/transformers pins):
-python -m pip install --no-deps -e third_party/alpamayo1      # --version 1 (R1)
-python -m pip install --no-deps -e third_party/alpamayo1.5    # --version 1.5
-python -m pip install --no-deps -e third_party/alpamayo2      # --version 2
-python -m pip install --no-deps -e third_party/oom-free-alpamayo  # optional: --oom-free (1.5)
-python -m pip install -r requirements-alpamayo.txt
+uv pip install --no-deps -e third_party/alpamayo1      # --version 1 (R1)
+uv pip install --no-deps -e third_party/alpamayo1.5    # --version 1.5
+uv pip install --no-deps -e third_party/alpamayo2      # --version 2
+uv pip install --no-deps -e third_party/oom-free-alpamayo  # optional: --oom-free (1.5)
+uv pip install -r requirements-alpamayo.txt
 ```
 
 ### 2.3 Authenticate with Hugging Face
@@ -133,7 +133,7 @@ pip install -r requirements-sim.txt
 export CARLA_ROOT=~/carla
 
 # Inference host (after §2)
-python -m pip install -r requirements-inference.txt
+uv pip install -r requirements-inference.txt
 python alpamayo_server.py --version 1.5 --host <private-ip> --port 50051
 ```
 
@@ -149,10 +149,9 @@ CARLA packages in one environment:
 uv venv a_carla_venv --python 3.12
 source a_carla_venv/bin/activate
 uv sync --active
-python -m ensurepip --upgrade
-python -m pip install --no-deps -e third_party/alpamayo1 -e third_party/alpamayo1.5 -e third_party/alpamayo2
-python -m pip install --no-deps -e third_party/oom-free-alpamayo  # optional: --oom-free (1.5)
-python -m pip install -r requirements-inference.txt -r requirements-sim.txt
+uv pip install --no-deps -e third_party/alpamayo1 -e third_party/alpamayo1.5 -e third_party/alpamayo2
+uv pip install --no-deps -e third_party/oom-free-alpamayo  # optional: --oom-free (1.5)
+uv pip install -r requirements-inference.txt -r requirements-sim.txt
 ```
 
 If `agents.navigation.controller` is not found, set `CARLA_ROOT` to the directory that contains `PythonAPI/carla`:

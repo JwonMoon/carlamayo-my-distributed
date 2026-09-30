@@ -17,8 +17,9 @@ uv venv a_venv --python 3.12
 # shellcheck disable=SC1091
 source a_venv/bin/activate
 uv sync --active || uv sync --active --no-install-package flash-attn
-python -m ensurepip --upgrade
-python -m pip install --no-deps -e "$VERSION_DIR"
-python -m pip install -r requirements-inference.txt
+# uv-managed Pythons ship without ensurepip/pip: use `uv pip` inside the venv.
+uv pip install --no-deps -e "$VERSION_DIR"
+uv pip install -r requirements-inference.txt
+python -c "import alpamayo1_5, grpc, cv2, bitsandbytes, psutil; print('inference deps OK')"
 echo "inference host ready. Next: hf auth login, then"
 echo "  python alpamayo_server.py --version 1.5 --host <private-ip> --port 50051"
