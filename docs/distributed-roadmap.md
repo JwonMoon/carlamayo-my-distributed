@@ -93,9 +93,9 @@
 
 | 파일 | 내용 |
 |---|---|
-| `deploy/aws/README.md` | 인스턴스 표(A g5.2xlarge 172.31.38.219 / B g6e.xlarge 172.31.20.213), AMI(Deep Learning AMI 또는 Ubuntu 22.04 + NVIDIA 드라이버 + Vulkan), 보안그룹 규칙표, S3 버킷 구조, DCV 접속, SSM 포트포워딩 |
+| `deploy/aws/README.md` | 인스턴스 표(A g5.2xlarge 172.31.38.219 / B g6e.xlarge 172.31.20.213), AMI(Deep Learning AMI 또는 Ubuntu 22.04 + NVIDIA 드라이버 + Vulkan), 보안그룹 규칙표, A↔B SSH 키 등록, DCV 접속, SSH 포트포워딩 |
 | `deploy/systemd/alpamayo-server.service` | `ExecStart=.../a_venv/bin/python alpamayo_server.py --version 1.5 --host 172.31.20.213`, `Restart=on-failure`, `TimeoutStartSec=900`, `Environment=HF_HOME=...` |
-| `deploy/scripts/` | `setup-sim-host.sh`, `setup-inference-host.sh`, `sync-dataset-to-s3.sh`, `fetch-results.sh` |
+| `deploy/scripts/` | `setup-sim-host.sh`, `setup-inference-host.sh`, `sync-dataset-to-inference-host.sh`(rsync A→B) |
 | `docs/cheatsheet.md` | 실제 명령으로 확정 |
 
 ## ☐ 10. 검증

@@ -49,11 +49,9 @@ flowchart LR
         end
         CLIENT -- "gRPC Predict / AnswerQuestion<br/>요청 5~8 MB (JPEG), 응답 < 10 KB, ~1 Hz" --> SERVER
     end
-    S3[("S3 버킷<br/>carla_data/, *.mp4, 로그")]
-    A -. "aws s3 sync" .-> S3
-    B -. "aws s3 sync" .-> S3
-    OP["운영자 PC"] -. "SSH / SSM 포트포워딩, DCV 클라이언트" .-> A
-    OP -. "SSH / SSM, Jupyter 포워딩" .-> B
+    A -. "rsync / scp (SSH, 내부 IP)<br/>carla_data/" .-> B
+    OP["운영자 PC"] -. "SSH, scp(*.mp4), DCV 클라이언트" .-> A
+    OP -. "SSH, scp(*.mp4), Jupyter 포워딩" .-> B
 ```
 
 ### 2.1 네트워크·보안그룹 규칙
@@ -63,8 +61,9 @@ flowchart LR
 | A ← 운영자 | 22 (또는 SSM만), 8443 | 운영자 IP | SSH, NICE DCV |
 | A ← A | 2000~2002, 8000 | localhost | CARLA RPC/스트림/TM (외부 개방 금지) |
 | B ← A | **50051** | A의 보안그룹 ID | gRPC 추론 |
+| B ← A | 22 | A의 보안그룹 ID | `rsync`/`scp`로 데이터 복사 |
 | B ← 운영자 | 22 (또는 SSM만) | 운영자 IP | SSH, Jupyter 포트포워딩(8888은 개방하지 않고 터널) |
-| A, B → 인터넷 | 443 | | Hugging Face(B), apt/pip, S3 |
+| A, B → 인터넷 | 443 | | Hugging Face(B), apt/pip |
 
 gRPC는 평문(TLS 없음)으로 시작한다. 같은 VPC의 사설 IP 사이이고 보안그룹으로 소스를 A로
 제한하므로 충분하다. VPC 밖으로 나갈 일이 생기면 그때 TLS를 켠다.
@@ -101,11 +100,11 @@ gRPC는 평문(TLS 없음)으로 시작한다. 같은 VPC의 사설 IP 사이이
 
 | 데이터 | 방향 | 수단 | 용도 |
 |---|---|---|---|
-| `carla_data/` (7카메라 JPEG + LiDAR + `trajectory.json`, 수 GB) | A → B | `aws s3 sync` 또는 `scp` | open-loop를 B에서 로컬로 돌릴 때 |
-| 결과 영상 `carla_alpamayo_*_result.mp4`, `*_pygame_ui.mp4` | A → S3 → 운영자 | `aws s3 cp` | closed/live-open 결과 확인 |
-| open-loop 결과 영상 | B → S3 → 운영자 (B 로컬 실행 시) 또는 A (원격 실행 시) | 같음 | |
-| 서버 로그(`journalctl -u alpamayo-server`), 클라이언트 로그 | 각 호스트 | 필요 시 S3 | 지연·오류 분석 |
-| parity 결과(`predictions.npz`, 타이밍 CSV) | A, B → S3 | | 로드맵 10단계 검증 |
+| `carla_data/` (7카메라 JPEG + LiDAR + `trajectory.json`, 수 GB) | A → B | `rsync -avz` (SSH, 내부 IP) | open-loop를 B에서 로컬로 돌릴 때 |
+| 결과 영상 `carla_alpamayo_*_result.mp4`, `*_pygame_ui.mp4` | A → 운영자 PC | `scp` | closed/live-open 결과 확인 |
+| open-loop 결과 영상 | B → 운영자 PC (B 로컬 실행 시) 또는 A → 운영자 PC (원격 실행 시) | `scp` | |
+| 서버 로그(`journalctl -u alpamayo-server`), 클라이언트 로그 | 각 호스트에 남김 | 필요 시 `scp` | 지연·오류 분석 |
+| parity 결과(`predictions.npz`, 타이밍 CSV) | B → A 또는 운영자 PC | `scp` | 로드맵 10단계 검증 |
 
 Hugging Face 토큰과 모델 가중치는 **B에만** 존재한다. A는 모델을 내려받을 필요가 없다.
 
@@ -201,7 +200,7 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     subgraph P1["경로 1: B 로컬 재생 (기본)"]
-        D1["A: data_collect.py -> carla_data/"] -- "s3 sync" --> D2["B: carla_data/"]
+        D1["A: data_collect.py -> carla_data/"] -- "rsync (SSH)" --> D2["B: carla_data/"]
         D2 --> R1["B: python carlamayo.py --loop open --version 1.5<br/>(기존 코드 그대로, 원격 없음)"]
         R1 --> V1["B: open_loop_result.mp4"]
     end
@@ -212,7 +211,8 @@ flowchart LR
     end
 ```
 
-- 경로 1은 코드 변경 없이 지금 당장 가능하다. open-loop는 원래 CARLA가 필요 없다.
+- 경로 1은 코드 변경 없이 지금 당장 가능하다. open-loop는 원래 CARLA가 필요 없다. 데이터는
+  A에서 `rsync`로 B의 `~/carlamayo/carla_data/`에 복사한다.
 - 경로 2는 같은 데이터·같은 `seed=42`로 경로 1과 결과를 비교하는 **parity 테스트**에 쓴다.
   `--image-encoding raw`면 같은 GPU에서 비트 단위 동일(또는 1e-6 이내)을 기대하고, JPEG로
   바꾸면 차이가 얼마나 나는지 측정한다.

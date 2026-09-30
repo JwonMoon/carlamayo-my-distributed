@@ -1,16 +1,37 @@
 # 인스턴스별 명령어 치트시트
 
-| 기호 | 인스턴스 | 내부 IP | 역할 |
+## 0. 무엇이 어디서 도는가
+
+| 기호 | 인스턴스 | 내부 IP | 여기서 실행하는 것 |
 |---|---|---|---|
-| **[A]** | g5.2xlarge | `172.31.38.219` | CARLA 서버 + Carlamayo 클라이언트 + pygame UI(DCV) |
-| **[B]** | g6e.xlarge | `172.31.20.213` | Alpamayo 추론 서버, 공식 노트북 |
+| **[A]** | g5.2xlarge | `172.31.38.219` | CARLA 서버, **`carlamayo.py`(open/closed/live-open 전부)**, `data_collect.py`, pygame UI(DCV) |
+| **[B]** | g6e.xlarge | `172.31.20.213` | **`alpamayo_server.py`**(모델을 한 번 로드해 gRPC로 상주), 공식 노트북 |
+
+`carlamayo.py`는 CARLA와 **같은 인스턴스(A)** 에서 돈다. 이 프로그램이 CARLA로부터 매 tick
+카메라 4장(초당 300 MB 이상)을 받고 NPC 교통을 관리하기 때문에 CARLA 옆에 있어야 한다.
+모델만 B에 두고, `carlamayo.py`는 `--inference-server 172.31.20.213:50051` 옵션으로 1초에 한 번
+압축 이미지(5~8 MB)를 B에 보내 궤적을 받아 온다. "A는 CARLA만, B에서 `carlamayo.py`" 구성은
+업스트림의 `--carla-host` 플래그로 가능하지만 위 트래픽이 네트워크를 건너야 해서 택하지
+않았다([ADR 0001](adr/0001-topology-client-on-sim-host.md)).
+
+두 인스턴스 모두 SSH로 접속하고, 저장소를 `~/carlamayo`에 클론해 그 안에서 명령을 실행한다.
+아래 명령은 전부 그 터미널에서 그대로 치는 것이다. SSH 사용자명은 AMI에 따라 `ubuntu` 또는
+`ec2-user`이므로 예시의 `ubuntu`를 맞게 바꾼다.
+
+### 용어: 세 가지 실행 모드
+
+| `--loop` | 시뮬레이터 | 운전 주체 | 모델 출력의 용도 | 언제 쓰나 |
+|---|---|---|---|---|
+| `open` | 없음. 녹화된 `carla_data/`를 재생 | 없음 | 영상에 그림 | 모델 단독 평가, RPC 검증 |
+| `live-open` | 실시간 CARLA | **CARLA 오토파일럿** | 영상에 오버레이만, 핸들에 닿지 않음 | 실제 주행 정책과 모델 예측을 나란히 관찰 |
+| `closed` | 실시간 CARLA | **모델**(PID 경유) | 조향·가속·제동으로 적용 | 본 실험 |
 
 > "(로드맵 N)" 표시가 붙은 명령은 [distributed-roadmap.md](distributed-roadmap.md)의 해당 단계가
 > 구현된 뒤에 동작한다. 표시가 없는 명령은 지금 업스트림 코드로도 동작한다.
 
 ---
 
-## 0. 최초 세팅
+## 1. 최초 세팅
 
 ### [A] sim host
 
@@ -23,7 +44,7 @@ cd ~/carlamayo
 mkdir -p ~/carla && cd ~/carla
 wget https://tiny.carla.org/carla-0-9-16-linux
 tar -xvzf carla-0-9-16-linux
-export CARLA_ROOT=~/carla          # ~/.bashrc에 추가
+echo 'export CARLA_ROOT=~/carla' >> ~/.bashrc && source ~/.bashrc
 
 # Python 환경 (torch 없음)
 cd ~/carlamayo
@@ -49,42 +70,70 @@ python -m pip install -r requirements-alpamayo.txt        # (로드맵 8 이후:
 hf auth login                                             # 모델 게이트 승인 후
 ```
 
+### A ↔ B 사이 파일 복사 준비 (한 번만)
+
+A에서 B로 `rsync`/`scp`를 쓰려면 A의 SSH 키가 B에 등록되어 있어야 한다.
+
+```bash
+# [A]
+ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519      # 이미 있으면 생략
+cat ~/.ssh/id_ed25519.pub                             # 출력 내용을 복사
+# [B]
+echo '<A의 공개키 한 줄>' >> ~/.ssh/authorized_keys
+# [A] 확인
+ssh ubuntu@172.31.20.213 hostname
+```
+
 ---
 
-## 1. 서버·시뮬레이터 기동
+## 2. 서버·시뮬레이터 기동
 
 | 순서 | 어디 | 명령 | 확인 |
 |---|---|---|---|
 | 1 | [B] | `cd ~/carlamayo && source a_venv/bin/activate && python alpamayo_server.py --version 1.5 --host 172.31.20.213 --port 50051` (로드맵 5) | 로그에 `warmed_up=True`, `SERVING` |
 | 1' | [B] | `sudo systemctl start alpamayo-server && journalctl -u alpamayo-server -f` (로드맵 9) | 같음 |
-| 2 | [A] | `cd ~/carla && ./CarlaUE4.sh -RenderOffScreen -quality-level=Epic` | 별도 터미널, 유지 |
+| 2 | [A] | `cd ~/carla && ./CarlaUE4.sh -RenderOffScreen -quality-level=Epic` | 별도 터미널(또는 `tmux`)에서 유지 |
 | 3 | [A] | `nvidia-smi` | CARLA가 약 6 GB 사용 |
 
 ---
 
-## 2. 데이터 수집 [A]
+## 3. 데이터 수집  [A 전용]
+
+CARLA가 있는 A에서만 한다. B는 데이터를 만들지 않는다.
 
 ```bash
 cd ~/carlamayo && source venv-sim/bin/activate
-python data_collect.py                     # Ctrl+C로 종료 → carla_data/ 생성
-aws s3 sync carla_data s3://<bucket>/carla_data/      # B에서 open-loop 하려면
+python data_collect.py                     # Ctrl+C로 종료 → ~/carlamayo/carla_data/ 생성
+```
+
+B에서 open-loop(아래 §4 경로 1)를 돌리려면 그 데이터를 B로 복사한다.
+
+```bash
+# [A]
+rsync -avz --progress ~/carlamayo/carla_data/ ubuntu@172.31.20.213:~/carlamayo/carla_data/
 ```
 
 ---
 
-## 3. open-loop
+## 4. open-loop
 
 | 경로 | 어디 | 명령 |
 |---|---|---|
-| 경로 1: B 로컬(기본) | [B] | `aws s3 sync s3://<bucket>/carla_data/ carla_data/ && python carlamayo.py --loop open --version 1.5 --data-root carla_data` |
-| 경로 2: A 원격(parity) | [A] | `python carlamayo.py --loop open --version 1.5 --data-root carla_data --inference-server 172.31.20.213:50051` (로드맵 4) |
-| 경로 2, raw | [A] | 위 명령에 `--image-encoding raw` |
+| 경로 1: B 로컬(기본, 지금 가능) | [B] | `cd ~/carlamayo && source a_venv/bin/activate && python carlamayo.py --loop open --version 1.5 --data-root carla_data` |
+| 경로 2: A 원격(RPC 검증) | [A] | `python carlamayo.py --loop open --version 1.5 --data-root carla_data --inference-server 172.31.20.213:50051` (로드맵 4) |
+| 경로 2, 무압축 | [A] | 위 명령에 `--image-encoding raw` |
 
-출력: `carla_alpamayo_open_loop_result.mp4`
+출력: 실행한 인스턴스의 `~/carlamayo/carla_alpamayo_open_loop_result.mp4`
 
 ---
 
-## 4. closed-loop [A]  (DCV 세션의 터미널에서 실행. SSH라면 `export DISPLAY=:0`)
+## 5. closed-loop  [A]
+
+DCV 세션 안의 터미널에서 실행한다. SSH 터미널에서 실행하려면 먼저 `export DISPLAY=:0`.
+
+```bash
+cd ~/carlamayo && source venv-sim/bin/activate && export CARLA_ROOT=~/carla
+```
 
 | 모드 | 명령 |
 |---|---|
@@ -96,39 +145,43 @@ aws s3 sync carla_data s3://<bucket>/carla_data/      # B에서 open-loop 하려
 | 첫 프롬프트를 UI에서 받고 시작 | 위 + `--start-paused` (로드맵 7) |
 
 UI 조작: `Enter` 프롬프트 적용, `Ctrl+P` 일시정지/재개(시뮬 세계 전체 정지), `Esc` 종료.
-출력: `carla_alpamayo_closed_loop_result.mp4`, `carla_alpamayo_closed_loop_result_pygame_ui.mp4`
+출력: `~/carlamayo/carla_alpamayo_closed_loop_result.mp4`, `..._pygame_ui.mp4`
 
-업스트림 코드 그대로(단일 호스트, 원격 없음)로 A에서만 돌리려면 `--inference-server`를 빼고
-A에 모델 환경을 갖추면 된다. 이 경우 A의 24 GB로는 1.5가 빠듯하다(`--quantization` 권장).
+분리 구현 전(지금)에 업스트림 그대로 돌려 보려면 A에 모델 환경까지 갖추고 `--inference-server`
+없이 실행한다. A의 24 GB로는 1.5가 빠듯하므로 `--quantization`을 권한다.
 
 ---
 
-## 5. live-open-loop [A]
+## 6. live-open-loop  [A]
+
+오토파일럿이 운전하고 모델은 관찰만 한다(§0 용어 표).
 
 ```bash
 python carlamayo.py --loop live-open --version 1.5 --async --inference-server 172.31.20.213:50051   # (로드맵 4)
 ```
-출력: `carla_alpamayo_live_open_loop_result.mp4`
+출력: `~/carlamayo/carla_alpamayo_live_open_loop_result.mp4`
 
 ---
 
-## 6. 결과 회수
+## 7. 결과 영상 가져오기
 
-| 어디 | 명령 |
-|---|---|
-| [A]/[B] | `aws s3 cp carla_alpamayo_*_result*.mp4 s3://<bucket>/results/$(date +%F)/` |
-| 로컬 PC | `aws s3 sync s3://<bucket>/results/ ./results/` 또는 `scp` |
+로컬 PC에서 실행한다. `<A>`/`<B>`는 SSH로 접속할 때 쓰는 주소(공인 IP 또는 호스트명)다.
+
+```bash
+scp ubuntu@<A>:~/carlamayo/carla_alpamayo_*_result*.mp4 ./results/     # closed, live-open
+scp ubuntu@<B>:~/carlamayo/carla_alpamayo_open_loop_result.mp4 ./results/   # open-loop 경로 1
+```
 
 ---
 
-## 7. 상태 확인·문제 해결
+## 8. 상태 확인·문제 해결
 
 | 목적 | 어디 | 명령 |
 |---|---|---|
-| 서버 health | [A] | `grpc_health_probe -addr=172.31.20.213:50051` 또는 `python -c "import grpc; ..."` (로드맵 5) |
-| 포트 열림 | [A] | `nc -zv 172.31.20.213 50051` |
+| 서버 포트 열림 | [A] | `nc -zv 172.31.20.213 50051` |
+| 서버 health | [A] | `grpc_health_probe -addr=172.31.20.213:50051` (로드맵 5) |
 | GPU | [A]/[B] | `nvidia-smi` |
-| 서버 로그 | [B] | `journalctl -u alpamayo-server -f` |
+| 서버 로그 | [B] | `journalctl -u alpamayo-server -f` (systemd 사용 시) |
 | CARLA 응답 | [A] | `python -c "import carla; c=carla.Client('localhost',2000); c.set_timeout(5); print(c.get_server_version())"` |
 | pygame 창이 안 뜸 | [A] | DCV 세션 터미널에서 실행하거나 `export DISPLAY=:0` |
 | `agents.navigation.controller` 없음 | [A] | `export CARLA_ROOT=~/carla` |
@@ -136,7 +189,7 @@ python carlamayo.py --loop live-open --version 1.5 --async --inference-server 17
 
 ---
 
-## 8. 종료
+## 9. 종료
 
 | 어디 | 명령 |
 |---|---|
@@ -146,14 +199,17 @@ python carlamayo.py --loop live-open --version 1.5 --async --inference-server 17
 
 ---
 
-## 9. 공식 Alpamayo 1.5 노트북 [B]
+## 10. 공식 Alpamayo 1.5 노트북  [B]
 
 [alpamayo15-notebooks-guide.md](alpamayo15-notebooks-guide.md) 참조.
 
 ```bash
-cd ~/carlamayo/third_party/alpamayo1.5
+# [B]
+cd ~/carlamayo/third_party/alpamayo1.5/notebooks
 source ~/carlamayo/a_venv/bin/activate
 uv pip install mediapy ipykernel ipywidgets jupyter
-jupyter notebook --no-browser --port 8888 --notebook-dir notebooks
-# 로컬 PC:  ssh -N -L 8888:localhost:8888 <B>   → 브라우저 http://localhost:8888
+jupyter notebook --no-browser --port 8888
+
+# 로컬 PC
+ssh -N -L 8888:localhost:8888 ubuntu@<B>      # 브라우저 http://localhost:8888
 ```

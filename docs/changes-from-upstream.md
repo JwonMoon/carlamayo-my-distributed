@@ -30,5 +30,7 @@
 | 2026-09-30 | 문서 | `docs/alpamayo15-notebooks-guide.md` | 공식 노트북 4개의 내용·준비물·g6e.xlarge 실행 가능성·예상 결과 | 모델 기능 사전 확인 | 1 |
 | 2026-09-30 | 문서 | `docs/diagrams/*.svg` | 위 문서의 Mermaid 다이어그램을 SVG로 렌더링(mermaid-cli) | Mermaid 미지원 뷰어 대비 | 1 |
 | 2026-09-30 | 문서 | `README.md` | 저장소 목적, 문서 색인, 업스트림 동기화 절 추가 | | 1 |
+| 2026-09-30 | 문서(2차) | `docs/diagrams/README.md` | 다이어그램 11개 각각의 출처·의미·읽는 법 | 다이어그램 설명 요청 | 1 |
+| 2026-09-30 | 문서(2차) | `docs/cheatsheet.md`, `docs/distributed-architecture.md`, `docs/distributed-roadmap.md`, `docs/adr/0005`, `docs/architecture-analysis.md` | "무엇이 어디서 도는가" 표와 세 모드 용어표 추가, `carlamayo.py`가 A에서 도는 이유 명시, S3 명령을 `rsync`/`scp`로 교체, 배포·open-loop 다이어그램 갱신 | 치트시트 혼동 해소, SSH 기반 운영에 맞춤 | 1 |
 
 > 코드 파일(`*.py`, `requirements-*.txt`, `pyproject.toml`, `.github/`)은 아직 업스트림과 동일하다.
