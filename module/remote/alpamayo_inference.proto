@@ -1,5 +1,5 @@
 // Carlamayo remote inference contract between the CARLA sim host (client) and the
-// Alpamayo inference host (server). See docs/distributed-architecture.md §3 and §7.
+// Alpamayo inference host (server). See docs/distributed/distributed-architecture.md §3 and §7.
 //
 // Regenerate the Python stubs with:  tools/gen_proto.sh
 syntax = "proto3";

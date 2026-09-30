@@ -57,7 +57,7 @@ RESPAWN_COLLISION_COOLDOWN_FRAMES = 10
 # inference server no longer lets the ego drive on a stale plan indefinitely.
 TRAJECTORY_MAX_AGE_SEC = 6.0
 
-# Profiling (see docs/distributed-architecture.md §9): system sampling period.
+# Profiling (see docs/distributed/distributed-architecture.md §9): system sampling period.
 PROFILE_INTERVAL_SEC = 1.0
 
 # Official PID follower config

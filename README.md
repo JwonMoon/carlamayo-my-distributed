@@ -21,19 +21,20 @@
 
 이 저장소는 [aveeslab/Carlamayo](https://github.com/aveeslab/Carlamayo)를 히스토리째 가져와
 **CARLA 인스턴스와 Alpamayo 인스턴스를 분리해 실행**하도록 개조하는 작업 공간이다.
-분석·설계·운영 문서(한국어)는 `docs/` 아래에 있다.
+분석·설계·운영 문서(한국어)는 `docs/distributed/` 아래에 있다. `docs/` 바로 아래의 영어 문서는
+업스트림 원본이다(일부는 두 호스트 구성에 맞게 손봤고, 그 내역은 변경 기록에 있다).
 
 | 문서 | 내용 |
 |---|---|
-| [docs/architecture-analysis.md](docs/architecture-analysis.md) | 현재(단일 호스트) 구조 분석: 배포·모듈 의존·시퀀스·데이터 크기·타이밍·UI |
-| [docs/distributed-architecture.md](docs/distributed-architecture.md) | 분리 후 구조, 인스턴스 간 데이터 교환 명세, 전/후 비교, RPC 계약 초안, 리스크 |
-| [docs/adr/](docs/adr/README.md) | 설계 결정 기록: 왜 이렇게 골랐고 다른 후보는 왜 아닌지 |
-| [docs/distributed-roadmap.md](docs/distributed-roadmap.md) | 분리 구현 단계별 작업 목록 |
-| [docs/cheatsheet.md](docs/cheatsheet.md) | 어느 인스턴스에서 어떤 명령을 치는지 |
-| [docs/validation-checklist.md](docs/validation-checklist.md) | 실제 두 인스턴스에서 단계별로 검증하는 체크리스트(진행 상태·기록 포함) |
-| [docs/changes-from-upstream.md](docs/changes-from-upstream.md) | 업스트림 대비 무엇을 어디에 왜 바꿨는지 |
-| [docs/alpamayo15-notebooks-guide.md](docs/alpamayo15-notebooks-guide.md) | 공식 Alpamayo 1.5 노트북 안내와 g6e.xlarge 실행 가능성 |
-| [docs/diagrams/](docs/diagrams/) | 위 문서의 다이어그램 SVG |
+| [docs/distributed/architecture-analysis.md](docs/distributed/architecture-analysis.md) | 현재(단일 호스트) 구조 분석: 배포·모듈 의존·시퀀스·데이터 크기·타이밍·UI |
+| [docs/distributed/distributed-architecture.md](docs/distributed/distributed-architecture.md) | 분리 후 구조, 인스턴스 간 데이터 교환 명세, 전/후 비교, RPC 계약 초안, 리스크 |
+| [docs/distributed/adr/](docs/distributed/adr/README.md) | 설계 결정 기록: 왜 이렇게 골랐고 다른 후보는 왜 아닌지 |
+| [docs/distributed/distributed-roadmap.md](docs/distributed/distributed-roadmap.md) | 분리 구현 단계별 작업 목록 |
+| [docs/distributed/cheatsheet.md](docs/distributed/cheatsheet.md) | 어느 인스턴스에서 어떤 명령을 치는지 |
+| [docs/distributed/validation-checklist.md](docs/distributed/validation-checklist.md) | 실제 두 인스턴스에서 단계별로 검증하는 체크리스트(진행 상태·기록 포함) |
+| [docs/distributed/changes-from-upstream.md](docs/distributed/changes-from-upstream.md) | 업스트림 대비 무엇을 어디에 왜 바꿨는지 |
+| [docs/distributed/alpamayo15-notebooks-guide.md](docs/distributed/alpamayo15-notebooks-guide.md) | 공식 Alpamayo 1.5 노트북 안내와 g6e.xlarge 실행 가능성 |
+| [docs/distributed/diagrams/](docs/distributed/diagrams/) | 위 문서의 다이어그램 SVG |
 | [deploy/aws/README.md](deploy/aws/README.md) | AWS 인스턴스·보안그룹·systemd·설치 스크립트 |
 
 분리 실행의 핵심 진입점:

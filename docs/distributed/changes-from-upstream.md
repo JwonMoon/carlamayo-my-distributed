@@ -78,4 +78,6 @@
 | 2026-09-30 | 문서 | `docs/cheatsheet.md`, `deploy/aws/README.md` | A→B 접속 준비를 "보안그룹(두 방법, 인바운드/아웃바운드 설명, 권한 요청 문구)" + "기존 키페어 pem으로 SSH config" 절차로 갱신. 실제 인스턴스에서 A→B가 멈추던(hang) 원인이 B의 launch-wizard 그룹임을 확인 | 운영 중 발견 | 9 |
 | 2026-09-30 | 문서 | `docs/validation-checklist.md`(신규) | 실제 두 인스턴스 검증 절차 8단계(준비 → 가짜 서버 → 모델 서버 → 데이터 수집 → 원격 open-loop → parity → closed-loop 4모드·재시작 내성 → live-open → 결과 정리)를 명령·통과 기준·기록 항목·진행 상태로 정리 | 로드맵 10단계 진행 추적 | 10 |
 
+| 2026-09-30 | 문서 정리 | `docs/distributed/`(이동) | 이 포크에서 추가한 문서·ADR·다이어그램을 `docs/distributed/`로 옮겨 업스트림 원본(`docs/*.md`)과 구분. 링크 전부 갱신 | 업스트림 문서와 한눈에 구분, 동기화 시 충돌 방지 | - |
+
 > 위 변경 후 `python -m pytest -q tests`: **153 passed**.

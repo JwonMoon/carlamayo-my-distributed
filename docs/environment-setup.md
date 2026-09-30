@@ -137,8 +137,8 @@ uv pip install -r requirements-inference.txt
 python alpamayo_server.py --version 1.5 --host <private-ip> --port 50051
 ```
 
-Per-instance commands are collected in [cheatsheet.md](cheatsheet.md); the design is in
-[distributed-architecture.md](distributed-architecture.md).
+Per-instance commands are collected in [cheatsheet.md](distributed/cheatsheet.md); the design is in
+[distributed-architecture.md](distributed/distributed-architecture.md).
 
 ### 3.1 Single-host closed-loop (upstream behaviour)
 

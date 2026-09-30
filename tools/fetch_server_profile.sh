@@ -4,7 +4,7 @@
 #   tools/fetch_server_profile.sh <run_id> [user@host] [remote_repo_dir]
 #
 # Run on the sim host after a closed/live-open/open-loop run. Defaults match the
-# AWS layout in docs/cheatsheet.md; override with arguments or environment variables
+# AWS layout in docs/distributed/cheatsheet.md; override with arguments or environment variables
 #   INFERENCE_HOST=ubuntu@172.31.20.213  REMOTE_REPO=~/carlamayo  RUNS_ROOT=runs
 set -euo pipefail
 

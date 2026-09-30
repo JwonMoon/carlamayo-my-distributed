@@ -30,7 +30,7 @@
 |---|---|---|---|---|
 | ☐ | 가짜 서버 기동 | B | `source a_venv/bin/activate && python alpamayo_server.py --fake --host 172.31.20.213 --port 50051` | 마지막 줄 `SERVING Fake Alpamayo ... warmed_up=True` |
 | ☐ | 포트 | A | `nc -zv 172.31.20.213 50051` | `succeeded!` |
-| ☐ | 왕복 | A | [deploy/aws/README.md](../deploy/aws/README.md)의 스니펫 | `OK (1, 1, 1, 64, 3) rtt=... request=...MB` |
+| ☐ | 왕복 | A | [deploy/aws/README.md](../../deploy/aws/README.md)의 스니펫 | `OK (1, 1, 1, 64, 3) rtt=... request=...MB` |
 
 기록할 것: `rtt`(초), `request`(MB). 1080p JPEG 16장이면 5~8 MB, VPC 내부 왕복은 0.1~0.3 s 예상.
 

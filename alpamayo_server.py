@@ -64,7 +64,7 @@ def build_parser():
     parser.add_argument("--no-warmup", action="store_true",
                         help="Skip the dummy warm-up inference after loading.")
 
-    # Per-run mirroring and profiling (see docs/distributed-architecture.md §9).
+    # Per-run mirroring and profiling (see docs/distributed/distributed-architecture.md §9).
     parser.add_argument("--runs-root", default="runs",
                         help="Where runs/<run_id>/ folders from clients are mirrored.")
     parser.add_argument("--profile", dest="profile", action="store_true", default=True,

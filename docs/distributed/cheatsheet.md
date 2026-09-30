@@ -47,7 +47,7 @@ git clone https://github.com/jwonmoon/carlamayo-my-distributed.git ~/carlamayo
 source ~/.bashrc                                   # CARLA_ROOT 반영
 ```
 
-수동으로 하려면 [deploy/aws/README.md](../deploy/aws/README.md)와 [environment-setup.md](environment-setup.md) §1, §3.
+수동으로 하려면 [deploy/aws/README.md](../../deploy/aws/README.md)와 [environment-setup.md](../environment-setup.md) §1, §3.
 
 ### [B] inference host
 
@@ -70,7 +70,7 @@ A→B에 필요한 것은 **B의 인바운드**뿐이다. 둘 중 하나:
 | 2 (최소 개방) | EC2 → 보안 그룹 → B의 그룹 → 인바운드 규칙 편집 | TCP 22, TCP 50051 두 규칙 추가, 원본 = A의 보안그룹 ID |
 
 권한 오류(`ec2:DescribeSecurityGroupRules ...`)가 나면 관리자에게 위 중 하나를 요청한다
-([deploy/aws/README.md](../deploy/aws/README.md)에 요청 문구 예시).
+([deploy/aws/README.md](../../deploy/aws/README.md)에 요청 문구 예시).
 
 **2) SSH 키: 기존 인스턴스 키페어(pem)를 그대로 쓴다.**
 
@@ -97,7 +97,7 @@ pem 없이 쓰려면 `ssh-copy-id -i ~/.ssh/id_ed25519.pub -o IdentityFile=~/.ss
 | 순서 | 어디 | 명령 | 확인 |
 |---|---|---|---|
 | 1 | [B] | `cd ~/carlamayo && source a_venv/bin/activate && python alpamayo_server.py --version 1.5 --host 172.31.20.213 --port 50051` | 로그 마지막에 `SERVING ... warmed_up=True` |
-| 1 (대안) | [B] | `sudo systemctl start alpamayo-server && journalctl -u alpamayo-server -f` (서비스 등록은 [deploy/aws/README.md](../deploy/aws/README.md)) | 같음 |
+| 1 (대안) | [B] | `sudo systemctl start alpamayo-server && journalctl -u alpamayo-server -f` (서비스 등록은 [deploy/aws/README.md](../../deploy/aws/README.md)) | 같음 |
 | 2 | [A] | `cd ~/carla && ./CarlaUE4.sh -RenderOffScreen -quality-level=Epic` | 별도 터미널(또는 `tmux`)에서 유지 |
 | 3 | [A] | `nvidia-smi` | CARLA가 약 6 GB 사용 |
 
@@ -125,7 +125,7 @@ python alpamayo_server.py --fake --host 172.31.20.213 --port 50051
 # [A]
 nc -zv 172.31.20.213 50051
 ```
-왕복 검증 스니펫은 [deploy/aws/README.md](../deploy/aws/README.md) 참조.
+왕복 검증 스니펫은 [deploy/aws/README.md](../../deploy/aws/README.md) 참조.
 
 ---
 
@@ -196,7 +196,7 @@ UI 조작: `Enter` 프롬프트 적용, `Ctrl+P` 일시정지/재개(시뮬 세�
 `log.txt`, `profile_client*.csv`
 
 업스트림처럼 A 한 대에서 모델까지 돌리려면 `--inference-server`를 빼고 A에 모델 환경을 갖춘다
-([environment-setup.md §3.1](environment-setup.md)). A의 24 GB로는 1.5가 빠듯하므로 `--quantization` 권장.
+([environment-setup.md §3.1](../environment-setup.md)). A의 24 GB로는 1.5가 빠듯하므로 `--quantization` 권장.
 
 ---
 

@@ -78,7 +78,7 @@ def build_parser(preset_loop=None):
     parser.add_argument("--no-run-dir", action="store_true",
                         help="Write outputs to the current directory like upstream did.")
 
-    # Profiling and safety (docs/distributed-architecture.md §9, roadmap 6/6b).
+    # Profiling and safety (docs/distributed/distributed-architecture.md §9, roadmap 6/6b).
     parser.add_argument("--profile", dest="profile", action="store_true", default=True,
                         help="Record per-tick / per-request / system CSVs into the run folder.")
     parser.add_argument("--no-profile", dest="profile", action="store_false",
