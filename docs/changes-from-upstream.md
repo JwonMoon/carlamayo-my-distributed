@@ -76,5 +76,6 @@
 | 2026-09-30 | 문서 | `docs/cheatsheet.md` | 구현된 명령으로 확정("(로드맵 N)" 표시 제거), 설치 스크립트·parity·프로파일 분석·문제 해결 항목 추가 | | 9 |
 | 2026-09-30 | 버그 수정 | `deploy/scripts/setup-inference-host.sh`, `docs/environment-setup.md` | uv 파이썬에는 `ensurepip`/`pip`이 없어 스크립트가 중단되던 문제 → `uv pip install`로 교체, 설치 후 import 확인 추가. 실제 B 인스턴스에서 발견 | | 9 |
 | 2026-09-30 | 문서 | `docs/cheatsheet.md`, `deploy/aws/README.md` | A→B 접속 준비를 "보안그룹(두 방법, 인바운드/아웃바운드 설명, 권한 요청 문구)" + "기존 키페어 pem으로 SSH config" 절차로 갱신. 실제 인스턴스에서 A→B가 멈추던(hang) 원인이 B의 launch-wizard 그룹임을 확인 | 운영 중 발견 | 9 |
+| 2026-09-30 | 문서 | `docs/validation-checklist.md`(신규) | 실제 두 인스턴스 검증 절차 8단계(준비 → 가짜 서버 → 모델 서버 → 데이터 수집 → 원격 open-loop → parity → closed-loop 4모드·재시작 내성 → live-open → 결과 정리)를 명령·통과 기준·기록 항목·진행 상태로 정리 | 로드맵 10단계 진행 추적 | 10 |
 
 > 위 변경 후 `python -m pytest -q tests`: **153 passed**.

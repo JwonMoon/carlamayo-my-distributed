@@ -30,6 +30,7 @@
 | [docs/adr/](docs/adr/README.md) | 설계 결정 기록: 왜 이렇게 골랐고 다른 후보는 왜 아닌지 |
 | [docs/distributed-roadmap.md](docs/distributed-roadmap.md) | 분리 구현 단계별 작업 목록 |
 | [docs/cheatsheet.md](docs/cheatsheet.md) | 어느 인스턴스에서 어떤 명령을 치는지 |
+| [docs/validation-checklist.md](docs/validation-checklist.md) | 실제 두 인스턴스에서 단계별로 검증하는 체크리스트(진행 상태·기록 포함) |
 | [docs/changes-from-upstream.md](docs/changes-from-upstream.md) | 업스트림 대비 무엇을 어디에 왜 바꿨는지 |
 | [docs/alpamayo15-notebooks-guide.md](docs/alpamayo15-notebooks-guide.md) | 공식 Alpamayo 1.5 노트북 안내와 g6e.xlarge 실행 가능성 |
 | [docs/diagrams/](docs/diagrams/) | 위 문서의 다이어그램 SVG |

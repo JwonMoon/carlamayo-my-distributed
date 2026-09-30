@@ -131,7 +131,7 @@
 | `deploy/scripts/` | `setup-sim-host.sh`, `setup-inference-host.sh`, `sync-dataset-to-inference-host.sh`(rsync A→B) |
 | `docs/cheatsheet.md` | 실제 명령으로 확정 |
 
-## ◐ 10. 검증 — 도구(`predictions.npz`, `tools/compare_predictions.py`, 스모크 테스트)는 완료, 실제 두 인스턴스에서의 실행·실측은 미완
+## ◐ 10. 검증 — 도구(`predictions.npz`, `tools/compare_predictions.py`, 스모크 테스트)는 완료, 실제 두 인스턴스에서의 실행·실측은 [validation-checklist.md](validation-checklist.md)로 진행 중
 
 | 항목 | 내용 |
 |---|---|

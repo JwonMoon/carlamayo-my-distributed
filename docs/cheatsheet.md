@@ -35,6 +35,8 @@
 
 ---
 
+처음 세팅한 뒤 무엇을 어떤 순서로 확인할지는 [validation-checklist.md](validation-checklist.md)에 있다.
+
 ## 1. 최초 세팅
 
 ### [A] sim host
