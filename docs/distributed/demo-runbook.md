@@ -5,6 +5,7 @@
 
 - **[A]** = 시뮬레이터 호스트 `172.31.38.219` (g5.2xlarge). CARLA, `carlamayo.py`, pygame 창(DCV). 명령은 DCV 세션 안의 터미널에서.
 - **[B]** = 추론 호스트 `172.31.20.213` (g6e.xlarge). `alpamayo_server.py` 하나만 띄워 둔다.
+- 순서: 0 점검 → 1 B 서버 → 2 A CARLA → 3 open-loop → 4 closed-loop 동기 → 4b 비동기 → 5 navigation+CFG → 6 VQA → 7 (선택) 후보 궤적 → 8 측정 정리 → 9 종료.
 - 원칙: **B는 데모 내내 손대지 않는다.** 모드 전환(open/closed, navigation, CFG, VQA)은 전부 A의 플래그와 창 입력으로 한다.
 - 터미널 규칙: B는 `tmux` 세션 `server`, A는 `tmux` 세션 `carla`(CARLA 서버) + DCV 터미널(클라이언트).
 
@@ -137,6 +138,35 @@ python carlamayo.py --loop closed --version 1.5 --inference-server 172.31.20.213
 
 ---
 
+## 4b. [A] closed-loop (normal, 비동기 모드) — 실시간성 시연
+
+동기 모드 바로 뒤에 같은 구간에서 돌려 **대비**를 보여준다.
+
+```bash
+# [A]
+python carlamayo.py --loop closed --version 1.5 --async --inference-server 172.31.20.213:50051 --run-tag async
+```
+
+볼 것:
+- 화면이 멈추지 않고 10 Hz로 계속 진행한다. 추론은 뒤에서 돌고 약 1초마다(실제로는 왕복 시간마다) 빨간 궤적이 교체된다.
+- 터미널에 `Trajectory age: N.NN s`가 찍힌다(비동기에서만 출력). 이 값이 "궤적을 계산한 장면과 지금 장면의 시간 차"다.
+  왕복 3 s에 시속 27 km면 약 20 m 전 장면 기준으로 달리는 셈이다.
+- 커브·교차로에서 반응이 늦고 흔들린다. 네트워크가 끊기면 궤적 나이가 6 s를 넘는 순간 정지한다(안전장치).
+- 2~3분 뒤 `Esc`.
+
+설명 멘트: "늦는 이유는 분리가 아니라 모델 추론 시간이다. 네트워크·인코딩 몫은 0.2~0.4 s." → `summary.md`의
+`inference_mean_s`(모델)와 `overhead_mean_s`(분리 비용)를 나란히 보여준다.
+
+> 팁 1: 동기(4단계)와 비동기(4b)를 같은 출발점·같은 구간에서 돌려야 비교가 된다. 리스폰 위치가 같으므로 시작 직후 구간을 쓰면 된다.
+>
+> 팁 2: 두 run을 한 표로: `python tools/analyze_run.py compare runs/<sync> runs/<async>` → `compare.md`의 `traj_age` 열.
+>
+> 팁 3: 데모에서 주행 품질을 보여줄 때는 동기, 실시간성과 지연 수치를 보여줄 때는 비동기. 둘 다 서버는 그대로다.
+
+기록: traj age 평균 `[ ]` s / p95 `[ ]` s, inference_mean `[ ]` s, overhead_mean `[ ]` s, 주행 소감 `[ ]`.
+
+---
+
 ## 5. [A] navigation + CFG — 자연어 지시 시연
 
 ```bash
@@ -202,7 +232,7 @@ python carlamayo.py --loop closed --version 1.5 --inference-server 172.31.20.213
 # [A]  각 run_id마다 (3~7단계에서 안 했으면)
 tools/fetch_server_profile.sh <run_id> && python tools/analyze_run.py runs/<run_id>
 # 한 표로
-python tools/analyze_run.py compare runs/<open> runs/<sync> runs/<nav-cfg15> runs/<vqa>    # → compare.md
+python tools/analyze_run.py compare runs/<open> runs/<sync> runs/<async> runs/<nav-cfg15> runs/<vqa>    # → compare.md
 ```
 ```bash
 # 로컬 PC: 영상·요약 가져오기
