@@ -79,7 +79,7 @@
 | 2026-09-30 | 문서 | `docs/validation-checklist.md`(신규) | 실제 두 인스턴스 검증 절차 8단계(준비 → 가짜 서버 → 모델 서버 → 데이터 수집 → 원격 open-loop → parity → closed-loop 4모드·재시작 내성 → live-open → 결과 정리)를 명령·통과 기준·기록 항목·진행 상태로 정리 | 로드맵 10단계 진행 추적 | 10 |
 
 | 2026-09-30 | 문서 정리 | `docs/distributed/`(이동) | 이 포크에서 추가한 문서·ADR·다이어그램을 `docs/distributed/`로 옮겨 업스트림 원본(`docs/*.md`)과 구분. 링크 전부 갱신 | 업스트림 문서와 한눈에 구분, 동기화 시 충돌 방지 | - |
-| 2026-09-30 | 문서(데모 장표) | `docs/distributed/demo-overview.pptx`, `demo-overview-short.pptx` | 라이브 데모 오버뷰 PPT 두 벌: 요약(6장: 시스템 구성, 원래 open-loop 환경 비교, 보여줄 것, 시사점, 용어집)과 전체(15장: + 데이터 교환, 진행 순서·명령, 측정 체계, 예상 병목, 다음 단계, 변경 요약). 실측 칸은 `[실측 후 기입]` | 데모 발표 자료 요청 | - |
+| 2026-09-30 | 문서(데모 장표) | `docs/distributed/demo-overview.pptx`, `demo-overview-short.pptx` | 라이브 데모 오버뷰 PPT 두 벌: 요약(6장: 시스템 구성, 원래 open-loop 환경 비교, 보여줄 것, 시사점, 용어집)과 전체(15장: + 데이터 교환, 진행 순서·명령, 측정 체계, 예상 병목, 다음 단계, 변경 요약). 실측 칸은 `[실측 후 기입]`. 비교표의 "공식 Alpamayo open-loop 테스트" 열은 NVIDIA 공식 노트북 환경(PhysicalAI-AV 클립 재생, minADE)이며 Carlamayo 자체 open-loop와 구분 | 데모 발표 자료 요청 | - |
 | 2026-09-30 | 궤적 샘플 수 | `alpamayo_server.py`, `module/remote/client.py`, `module/adapters/base.py`, `module/loops/closed_loop.py` | 서버 옵션 `--num-traj-samples N`이 `config.NUM_TRAJ_SAMPLES`를 덮어씀. 클라이언트는 핸드셰이크 검증 항목에서 이 값을 빼고 서버 값을 `adapter.num_traj_samples`로 받아 씀(`runtime_summary`에 표시). closed-loop 출력 `Selected traj sample: k/S-1`은 실제 샘플 수 기준 | 여러 궤적 후보를 화면에 그리는 실험을 설정 파일 수정 없이 | - |
 
 > 위 변경 후 `python -m pytest -q tests`: **155 passed**.
