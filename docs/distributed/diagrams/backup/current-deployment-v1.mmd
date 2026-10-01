@@ -1,0 +1,23 @@
+flowchart LR
+    subgraph HOST["단일 호스트 (GPU 1~2장)"]
+        direction LR
+        subgraph CARLA["CARLA 서버 프로세스 (UE4)"]
+            MAP["Town03 맵 / 물리 / NPC 50+50"]
+            RENDER["카메라 렌더링 1920x1080 x 4~7"]
+        end
+        subgraph PY["Carlamayo 클라이언트 프로세스 (Python 3.12)"]
+            CI["CARLAInterface<br/>(carla wheel, Traffic Manager)"]
+            LOOP["closed_loop / live_open_loop"]
+            MODEL["Alpamayo 모델<br/>(torch, 24~70 GB VRAM)"]
+            PID["OfficialPIDFollower<br/>(CARLA PythonAPI agents)"]
+            UI["pygame UI / VideoRecorder"]
+        end
+        CI -- "RPC :2000 / TM :8000" --> MAP
+        RENDER -- "센서 스트림 :2001 (BGRA)" --> CI
+        CI --> LOOP --> MODEL --> LOOP --> PID --> CI
+        LOOP --> UI
+    end
+    GPU0[("GPU 0: CARLA ~6 GB")]
+    GPU1[("GPU 0 또는 1: 모델 24~70 GB")]
+    CARLA -.-> GPU0
+    MODEL -.-> GPU1

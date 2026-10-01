@@ -61,25 +61,33 @@ flowchart LR
         direction LR
         subgraph CARLA["CARLA 서버 프로세스 (UE4)"]
             MAP["Town03 맵 / 물리 / NPC 50+50"]
-            RENDER["카메라 렌더링 1920x1080 x 4~7"]
+            RENDER["카메라 렌더링 1920x1080 x4"]
         end
-        subgraph PY["Carlamayo 클라이언트 프로세스 (Python 3.12)"]
-            CI["CARLAInterface<br/>(carla wheel, Traffic Manager)"]
+        subgraph PY["Carlamayo 클라이언트 프로세스 (Python 3.12, torch 포함)"]
+            CI["CARLAInterface"]
             LOOP["closed_loop / live_open_loop"]
-            MODEL["Alpamayo 모델<br/>(torch, 24~70 GB VRAM)"]
-            PID["OfficialPIDFollower<br/>(CARLA PythonAPI agents)"]
+            ADAPTER["AlpamayoAdapter (로컬)<br/>모델을 같은 프로세스에 로드"]
+            MODEL["Alpamayo 1.5 모델<br/>(torch, bf16 ~24 GB VRAM)"]
+            PID["OfficialPIDFollower"]
             UI["pygame UI / VideoRecorder"]
         end
-        CI -- "RPC :2000 / TM :8000" --> MAP
-        RENDER -- "센서 스트림 :2001 (BGRA)" --> CI
-        CI --> LOOP --> MODEL --> LOOP --> PID --> CI
+        MAP <-- "RPC :2000 / TM :8000 (명령·설정)" --> CI
+        RENDER -- "① 센서 스트림 :2001<br/>(BGRA, 300~600 MB/s)" --> CI
+        CI --> LOOP
+        LOOP -- "② 입력: 이미지 4x4 + 이력 + 프롬프트" --> ADAPTER
+        ADAPTER -- "함수 호출" --> MODEL
+        ADAPTER -- "③ 궤적 + CoT" --> LOOP
+        LOOP --> PID
+        PID -- "④ 제어 명령 (조향·가감속)" --> CI
         LOOP --> UI
     end
-    GPU0[("GPU 0: CARLA ~6 GB")]
-    GPU1[("GPU 0 또는 1: 모델 24~70 GB")]
+    GPU0[("GPU 0 (24 GB): CARLA ~6 GB")]
+    GPU1[("GPU 0 공유 또는 GPU 1: 모델 ~24 GB")]
     CARLA -.-> GPU0
     MODEL -.-> GPU1
 ```
+
+> 이 그림과 [분리 후 그림](distributed-architecture.md#2-배포-다이어그램-분리-후)은 같은 컴포넌트 집합으로 그렸다. 달라지는 것은 어댑터 상자(로컬 `AlpamayoAdapter` → `RemoteAlpamayoAdapter`)와 모델 상자의 위치(같은 프로세스 → B의 서버 프로세스), 그리고 GPU 두 개가 서로 다른 호스트에 있다는 점뿐이다. 번호 ①~④는 closed-loop 한 사이클이며 두 그림에서 같다. 이전 버전은 [diagrams/backup/](diagrams/backup/)에 있다.
 
 **GPU 공유 문제.** CARLA 서버와 모델이 같은 GPU에 있으면 VRAM이 부족해지기 쉽다.
 업스트림은 이를 `--quantization`(4-bit), `--oom-free`(1.5 전용 레이어 스트리밍),

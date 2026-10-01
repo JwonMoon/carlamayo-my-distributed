@@ -33,32 +33,44 @@
 
 ```mermaid
 flowchart LR
-    OP["운영자 PC"]
-    subgraph VPC["AWS VPC (같은 서브넷)"]
+    subgraph A["A. sim host  g5.2xlarge  172.31.38.219"]
         direction LR
-        subgraph A["A. sim host  g5.2xlarge  172.31.38.219"]
-            direction TB
-            CARLA["CARLA 서버 (UE4)<br/>:2000 RPC / :2001 stream / :8000 TM<br/>localhost 전용"]
-            CLIENT["carlamayo.py --inference-server 172.31.20.213:50051<br/>CARLAInterface + PID + respawn + pygame UI + VideoRecorder<br/>RemoteAlpamayoAdapter (torch 없음)"]
-            DCV["NICE DCV 세션 (pygame 창 표시)"]
-            CARLA -- "① 센서 영상<br/>(loopback 300~600 MB/s, 10 Hz)" --> CLIENT
-            CLIENT -- "④ 제어 명령 (PID: 조향·가감속)<br/>→ 다음 tick" --> CARLA
-            CLIENT --> DCV
+        subgraph CARLA["CARLA 서버 프로세스 (UE4)"]
+            MAP["Town03 맵 / 물리 / NPC 50+50"]
+            RENDER["카메라 렌더링 1920x1080 x4"]
         end
-        subgraph B["B. inference host  g6e.xlarge  172.31.20.213"]
-            direction TB
-            SERVER["alpamayo_server.py --version 1.5<br/>gRPC :50051, 모델 1회 로드, health"]
-            MODEL["Alpamayo 1.5 (bf16, ~24 GB VRAM)"]
-            HF["HF 캐시 / 토큰"]
-            SERVER --> MODEL
-            SERVER -.-> HF
+        subgraph PY["Carlamayo 클라이언트 프로세스 (Python 3.10, torch 없음)"]
+            CI["CARLAInterface"]
+            LOOP["closed_loop / live_open_loop"]
+            ADAPTER["RemoteAlpamayoAdapter (gRPC 클라이언트)<br/>JPEG 인코딩, run_id 전달"]
+            PID["OfficialPIDFollower"]
+            UI["pygame UI / VideoRecorder"]
         end
-        CLIENT <-- "gRPC Predict / AnswerQuestion (TCP :50051)<br/>② 요청 ⟶ JPEG 5~8 MB + 이력 + 프롬프트, ~1 Hz<br/>⟵ ③ 응답: 궤적 64점 + CoT / 답변, < 10 KB" --> SERVER
-        A -. "rsync / scp (SSH, 내부 IP)<br/>carla_data/" .-> B
+        MAP <-- "RPC :2000 / TM :8000 (명령·설정)" --> CI
+        RENDER -- "① 센서 스트림 :2001<br/>(BGRA, 300~600 MB/s)" --> CI
+        CI --> LOOP
+        LOOP -- "② 입력: 이미지 4x4 + 이력 + 프롬프트" --> ADAPTER
+        ADAPTER -- "③ 궤적 + CoT" --> LOOP
+        LOOP --> PID
+        PID -- "④ 제어 명령 (조향·가감속)" --> CI
+        LOOP --> UI
     end
-    OP -. "SSH, scp(*.mp4), DCV 클라이언트" .-> A
-    OP -. "SSH, scp(*.mp4), Jupyter 포워딩" .-> B
+    subgraph B["B. inference host  g6e.xlarge  172.31.20.213"]
+        direction LR
+        subgraph SRV["alpamayo_server.py 프로세스 (Python 3.12, torch 포함)"]
+            RPC["gRPC 서비스 :50051<br/>GetModelInfo / Predict / AnswerQuestion"]
+            MODEL["Alpamayo 1.5 모델<br/>(torch, bf16 ~24 GB VRAM)"]
+        end
+        RPC -- "함수 호출" --> MODEL
+    end
+    ADAPTER <-- "TCP/gRPC (VPC 내부)<br/>② 요청 ⟶ JPEG 5~8 MB, ~1 Hz<br/>⟵ ③ 응답 궤적 + CoT, < 10 KB" --> RPC
+    GPU0[("A GPU A10G 24 GB: CARLA ~6 GB")]
+    GPU1[("B GPU L40S 48 GB: 모델 ~24 GB")]
+    CARLA -.-> GPU0
+    MODEL -.-> GPU1
 ```
+
+> [현재 구조 그림](architecture-analysis.md#2-배포-다이어그램-현재-한-호스트)과 같은 컴포넌트 집합으로 그렸다. 어댑터 상자가 `RemoteAlpamayoAdapter`(gRPC 클라이언트, torch 없음)로 바뀌고, 모델 상자가 B의 `alpamayo_server.py` 프로세스로 옮겨 가며, 그 사이를 양방향 gRPC 화살표(② 요청 / ③ 응답)가 잇는다. 운영자 접속·DCV·파일 복사 경로는 이 그림에서 빼고 §2.1 표와 치트시트에만 둔다. 이전 버전은 [diagrams/backup/](diagrams/backup/)에 있다.
 
 ### 2.1 네트워크·보안그룹 규칙
 
