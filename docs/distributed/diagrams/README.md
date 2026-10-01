@@ -20,6 +20,8 @@ GitHub에서 문서를 열면 같은 그림이 바로 보인다. SVG는 Mermaid�
 | 파일 | 출처 | 보여주는 것 | 읽는 법 |
 |---|---|---|---|
 | `split-deployment.svg` | §2 | 분리 후. A(g5.2xlarge)에 CARLA 서버 프로세스 + 클라이언트 프로세스(어댑터가 `RemoteAlpamayoAdapter`로 바뀜, torch 없음), B(g6e.xlarge)에 `alpamayo_server.py` 프로세스(gRPC 서비스 + 모델) | `current-deployment.svg`와 나란히 놓고 보면 달라진 것은 어댑터 상자, 모델 상자의 위치, GPU 두 개가 다른 호스트라는 점뿐. 어댑터 ↔ gRPC 서비스 양방향 화살표에 ② 요청 / ③ 응답. 운영자 접속·DCV·rsync는 §2.1 표 참조 |
+| `stack-deployment.svg` | distributed-architecture §2.2 | 호스트별 소프트웨어 스택. 아래부터 AWS 인스턴스 → OS·드라이버 → 런타임·라이브러리 → 모델 → 실행 프로세스. 데모 장표의 구성도와 같은 내용 | 가운데 열의 상자 두 개가 두 호스트를 잇는 유일한 경로: 실행 층의 gRPC :50051, OS 층의 SSH(파일 복사). A의 모델 층이 비어 있는 것이 분리의 요점 (Mermaid `block-beta`) |
+| `official-open-loop.svg` | alpamayo15-notebooks-guide §1 | NVIDIA 공식 노트북의 open-loop 테스트 환경. GPU 호스트 1대의 Jupyter 프로세스 안에서 PhysicalAI-AV 클립 1개 → 모델 → 궤적·CoC → GT와 minADE 비교 | 배포 그림과 같은 상자 모양·번호. ④(제어)가 없고 시뮬레이터·네트워크가 없다는 점이 데모 closed-loop와의 차이. 점선 = Hugging Face에서 가중치·클립 가져오기 |
 | `split-seq-closed-loop-async.svg` | §4.1 | 분리 후 closed-loop(async). 시작 시 `GetModelInfo` 핸드셰이크로 카메라 리그를 받고, 워커 스레드가 JPEG 인코딩 후 `Predict`를 보내는 흐름 | 참가자 앞의 "A:"/"B:"가 어느 인스턴스에서 도는지. 핸드셰이크가 `CARLAInterface` 생성보다 먼저인 이유는 리그를 서버에서 받기 때문 |
 | `split-seq-navigation-vqa-rpc.svg` | §4.2 | navigation(CFG) 가중치와 VQA 질문이 RPC 필드로 B에 전달되고 결과가 UI로 돌아오는 경로 | 위 절반이 navigation(`Predict`의 `navigation_weight`), 아래 절반이 VQA(`AnswerQuestion`) |
 | `split-run-id-profiling.svg` | §9.2 | A가 실행 폴더 이름(run_id)을 만들어 모든 RPC 메타에 실어 보내고, B가 같은 이름의 폴더를 만들어 프로파일을 기록한 뒤, 종료 후 rsync로 한 폴더에 합쳐 분석하는 흐름 | `alt` 상자 = B가 처음 보는 run_id일 때만 폴더 생성. 마지막 두 줄이 종료 후 수동 단계 |

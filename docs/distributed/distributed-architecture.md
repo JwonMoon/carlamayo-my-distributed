@@ -88,6 +88,46 @@ gRPC는 평문(TLS 없음)으로 시작한다. 같은 VPC의 사설 IP 사이이
 
 ---
 
+### 2.2 호스트별 소프트웨어 스택
+
+아래부터 AWS 인스턴스 → OS·드라이버 → 런타임·라이브러리 → 모델 → 실행 프로세스 순서다. 두 호스트는 맨 위
+실행 프로세스끼리만 TCP(gRPC :50051)로 연결되고, OS 층 사이에는 파일 복사용 SSH만 있다. A에는 모델도 torch도 없고,
+B에는 CARLA도 pygame도 없다. (렌더링: [diagrams/stack-deployment.svg](diagrams/stack-deployment.svg))
+
+```mermaid
+block-beta
+    columns 8
+    L0["층"]:1 HA["A. 시뮬레이터 호스트 (x86 필수)"]:3 space:1 HB["B. 추론 호스트 (GPU, x86 또는 ARM)"]:3
+    L1["실행\n프로세스"]:1 A1["CarlaUE4.sh -RenderOffScreen (CARLA 서버 :2000)\ncarlamayo.py --loop closed --async --inference-server 172.31.20.213:50051\n루프 · PID · 리스폰 · 영상 기록 · pygame UI(DCV)"]:3 G1["TCP/gRPC :50051\n요청 5~8 MB, ~1 Hz\n응답 < 10 KB"]:1 B1["alpamayo_server.py --version 1.5 --host 172.31.20.213 --port 50051\ngRPC: GetModelInfo / Predict / AnswerQuestion\n모델 1회 로드 · 워밍업 · 요청 직렬화 · 프로파일러\n(선택) Jupyter 공식 노트북"]:3
+    L2["모델"]:1 A2["(모델 없음) 궤적·답변은 B에서 gRPC로 받음"]:3 space:1 B2["Alpamayo 1.5 가중치 (Hugging Face 캐시, bf16 약 24 GB VRAM)\nalpamayo1_5 패키지 · HF 토큰"]:3
+    L3["런타임 ·\n라이브러리"]:1 A3["Unreal Engine 4 (CARLA 0.9.16 바이너리, GPU 약 6 GB)\nPython 3.10 venv-sim: carla PythonAPI, grpcio, opencv, pygame,\nnumpy/scipy, psutil, pynvml — torch 없음"]:3 space:1 B3["Python 3.12 uv a_venv: torch 2.8 (CUDA 12.x 번들), transformers 4.57,\nflash-attn 2.8, bitsandbytes, grpcio + health, opencv, pynvml"]:3
+    L4["OS ·\n드라이버"]:1 A4["Ubuntu 22.04 · NVIDIA 드라이버 + Vulkan (CARLA 렌더링)\nNICE DCV 서버 :8443"]:3 G4["SSH\nrsync / scp"]:1 B4["Ubuntu 22.04 · NVIDIA 드라이버 (CUDA는 torch 휠에 포함)"]:3
+    L5["AWS\n인스턴스"]:1 A5["g5.2xlarge · x86_64, 8 vCPU, 32 GB RAM · NVIDIA A10G 24 GB\n172.31.38.219 · 보안그룹: VPC 내부 허용"]:3 space:1 B5["g6e.xlarge · x86_64, 4 vCPU, 32 GB RAM · NVIDIA L40S 48 GB\n172.31.20.213 · VRAM만 맞으면 ARM GPU 인스턴스로 교체 가능"]:3
+    A1 <--> G1
+    G1 <--> B1
+    A4 <--> G4
+    G4 <--> B4
+    classDef lab fill:#F3F5F8,stroke:#D5DBE3,color:#6B7A8C,font-weight:bold
+    classDef ha fill:#E8F0FC,stroke:#2A6FDB,color:#24313F
+    classDef hb fill:#FCEFE4,stroke:#E0762B,color:#24313F
+    classDef hdA fill:#2A6FDB,stroke:#2A6FDB,color:#FFFFFF,font-weight:bold
+    classDef hdB fill:#E0762B,stroke:#E0762B,color:#FFFFFF,font-weight:bold
+    classDef none fill:#F7F9FB,stroke:#2A6FDB,color:#6B7A8C
+    classDef link fill:#FFFFFF,stroke:#6B7A8C,color:#24313F
+    class L0,L1,L2,L3,L4,L5 lab
+    class HA hdA
+    class HB hdB
+    class A1,A3,A4,A5 ha
+    class A2 none
+    class B1,B2,B3,B4,B5 hb
+    class G1,G4 link
+```
+
+OS 행의 `Ubuntu 22.04`는 [deploy/aws/README.md](../../deploy/aws/README.md)의 권장 AMI 기준이며 실제 인스턴스에서
+`lsb_release -a`로 확인한다.
+
+---
+
 ## 3. 인스턴스 간 데이터 교환 명세
 
 ### 3.1 gRPC 채널 (A → B, 실시간)
@@ -278,6 +318,9 @@ NICE DCV가 A에 이미 설정되어 있으므로 그것을 쓴다.
 ---
 
 ## 6. 전/후 비교
+
+공식 Alpamayo open-loop 테스트 환경(NVIDIA 노트북)의 구조는 [alpamayo15-notebooks-guide.md §1](alpamayo15-notebooks-guide.md#1-노트북의-공통-성격)의
+그림([diagrams/official-open-loop.svg](diagrams/official-open-loop.svg))을 보라. 아래 표의 "현재"는 업스트림 Carlamayo(단일 호스트)다.
 
 | 항목 | 현재 (단일 호스트) | 분리 후 |
 |---|---|---|

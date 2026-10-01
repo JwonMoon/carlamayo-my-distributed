@@ -23,6 +23,37 @@ README(하드웨어 표, FAQ)를 직접 읽고 정리했다. 실행 시간·메�
 - Carlamayo와의 관계: Carlamayo는 이 한 번의 예측을 매초 반복하며 CARLA 카메라를 입력으로
   넣고, 예측 궤적을 PID로 실제 주행에 연결한 것이다.
 
+구조를 Carlamayo 배포 다이어그램([current-deployment.svg](diagrams/current-deployment.svg),
+[split-deployment.svg](diagrams/split-deployment.svg))과 같은 컴포넌트 수준으로 그리면 다음과 같다. 번호 ①~③은
+그쪽 그림의 ①~③에 대응하며, ④(제어 명령)는 없다. 시뮬레이터·제어기·네트워크가 없고 평가는 GT 궤적과의
+minADE로 끝난다. (렌더링: [diagrams/official-open-loop.svg](diagrams/official-open-loop.svg))
+
+```mermaid
+flowchart LR
+    HF["Hugging Face (게이트 승인 필요)<br/>모델 가중치 nvidia/Alpamayo-R1-1.5<br/>데이터셋 nvidia/PhysicalAI-Autonomous-Vehicles"]
+    subgraph HOST["GPU 호스트 1대 (예: B g6e.xlarge, 또는 24 GB 이상 GPU PC)"]
+        direction LR
+        subgraph NB["Jupyter 노트북 프로세스 (inference*.ipynb, Python 3.12, torch 포함)"]
+            LOADER["physical_ai_av 로더<br/>클립 1개를 실행 중 스트리밍"]
+            INPUT["입력: 카메라 4대 x 4프레임<br/>+ 자차 이력 16스텝 (+ GT 궤적)"]
+            CALL["helper.create_message<br/>sample_trajectories_from_data_with_vlm_rollout"]
+            MODEL["Alpamayo 1.5 모델<br/>(torch, bf16 ~24 GB VRAM)"]
+            OUT["출력: CoC 문장<br/>예측 궤적 64점 (6.4 s)"]
+            EVAL["평가: GT 궤적과 겹친 그림<br/>minADE (m)"]
+        end
+        LOADER -- "① 클립 로드" --> INPUT
+        INPUT -- "② 입력 (이미지 + 이력 + 프롬프트)" --> CALL
+        CALL -- "함수 호출" --> MODEL
+        MODEL -- "③ 궤적 + CoC" --> OUT
+        OUT --> EVAL
+        INPUT -. "GT 궤적" .-> EVAL
+    end
+    HF -. "가중치 1회 다운로드 (캐시)" .-> MODEL
+    HF -. "클립 스트리밍" .-> LOADER
+    GPU[("GPU 1장 (24 GB 이상): 모델 ~24 GB")]
+    MODEL -.-> GPU
+```
+
 ---
 
 ## 2. 사전 준비 체크리스트 [B]
