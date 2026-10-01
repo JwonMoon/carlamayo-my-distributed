@@ -8,8 +8,8 @@ pytest.importorskip("pygame")
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
-from module.navigation_control import NavigationControlState  # noqa: E402
-from module.pygame_ui import ClosedLoopPygameUI  # noqa: E402
+from module.navigation_control import NavigationControlState
+from module.pygame_ui import ClosedLoopPygameUI
 
 
 @pytest.mark.parametrize("size,panel", [((1280, 900), 190), ((960, 675), 142), ((640, 450), 95)])

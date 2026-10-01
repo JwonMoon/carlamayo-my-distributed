@@ -42,7 +42,7 @@ class ClosedLoopPygameUI:
 
     def _px(self, value: float) -> int:
         """Scale a 1280-wide layout coordinate to this window."""
-        return max(1, int(round(value * self.scale)))
+        return max(1, round(value * self.scale))
 
     def close(self) -> None:
         self.pygame.quit()

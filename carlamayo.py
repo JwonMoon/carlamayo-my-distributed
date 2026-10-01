@@ -123,8 +123,8 @@ def build_parser(preset_loop=None):
                         help="[closed, live-open] Run headless (video is still recorded).")
     parser.add_argument("--pygame-size", default=None, metavar="WxH",
                         help="[closed, live-open] Pygame window size, e.g. 1280x900 (default: "
-                             "config %dx%d; the panel and fonts scale with the width)."
-                             % (cfg.PYGAME_WINDOW_WIDTH, cfg.PYGAME_WINDOW_HEIGHT))
+                             f"config {cfg.PYGAME_WINDOW_WIDTH}x{cfg.PYGAME_WINDOW_HEIGHT}; "
+                             "the panel and fonts scale with the width).")
     parser.add_argument("--start-paused", dest="start_paused", action="store_true", default=None,
                         help="[closed] Start with the simulation paused so the first prompt can "
                              "be typed. Default: paused only in navigation/vqa mode when no "
