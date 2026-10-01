@@ -17,8 +17,8 @@
 | ☑ | A 셋업 | A | `deploy/scripts/setup-sim-host.sh` → `source ~/.bashrc` | `ls ~/carla/CarlaUE4.sh`, `echo $CARLA_ROOT`, `source venv-sim/bin/activate && python -c "import carla, grpc, cv2, pygame"` |
 | ☑ | B 셋업 | B | `deploy/scripts/setup-inference-host.sh` | `python -c "import alpamayo1_5, grpc, cv2, bitsandbytes"` → 오류 없음 (2026-09-30 확인: `B deps OK`) |
 | ☐ | HF 로그인 | B | `hf auth login` | `hf auth whoami`에 계정 표시. 모델 게이트 승인 상태 |
-| ☐ | 보안그룹 | AWS 콘솔 | B에 A의 그룹 추가 또는 22·50051 규칙 추가 (관리자 요청 중, 2026-09-30) | A에서 `nc -zv 172.31.20.213 22` → `succeeded!` |
-| ☐ | SSH A→B | A | `~/.ssh/config`에 pem 지정 후 `ssh ubuntu@172.31.20.213 hostname` | `ip-172-31-20-213` |
+| ☑ | 보안그룹 | AWS 콘솔 | B에 A의 그룹 추가 또는 22·50051 규칙 추가 (관리자 요청 → 2026-10-01 반영 확인) | A에서 `nc -zv 172.31.20.213 22` → `succeeded!` |
+| ☑ | SSH A→B | A | `~/.ssh/config`에 pem 지정 후 `ssh ubuntu@172.31.20.213 hostname` | `ip-172-31-20-213` |
 
 기록: A 셋업 성공, B 셋업은 `ensurepip` 버그로 중단 → 수동 `uv pip` 설치로 완료(스크립트는 `aa25b3d`에서 수정).
 
@@ -28,13 +28,17 @@
 
 | 상태 | 항목 | 어디 | 명령 | 통과 기준 |
 |---|---|---|---|---|
-| ☐ | 가짜 서버 기동 | B | `source a_venv/bin/activate && python alpamayo_server.py --fake --host 172.31.20.213 --port 50051` | 마지막 줄 `SERVING Fake Alpamayo ... warmed_up=True` |
-| ☐ | 포트 | A | `nc -zv 172.31.20.213 50051` | `succeeded!` |
-| ☐ | 왕복 | A | [deploy/aws/README.md](../../deploy/aws/README.md)의 스니펫 | `OK (1, 1, 1, 64, 3) rtt=... request=...MB` |
+| ☑ | 가짜 서버 기동 | B | `source a_venv/bin/activate && python alpamayo_server.py --fake --host 172.31.20.213 --port 50051` | 마지막 줄 `SERVING Fake Alpamayo ... warmed_up=True` |
+| ☑ | 포트 | A | `nc -zv 172.31.20.213 50051` | `succeeded!` |
+| ☑ | 왕복 | A | [deploy/aws/README.md](../../deploy/aws/README.md)의 스니펫 | `OK (1, 1, 1, 64, 3) rtt=... request=...MB` |
 
 기록할 것: `rtt`(초), `request`(MB). 1080p JPEG 16장이면 5~8 MB, VPC 내부 왕복은 0.1~0.3 s 예상.
 
-실패 시 원인 후보: 보안그룹(멈춤), `--host` 바인드 IP 오타(refused), A의 grpcio 미설치(import 오류).
+기록(2026-10-01): `OK (1, 1, 1, 64, 3) rtt=0.177s request=0.5MB`. 검은 이미지라 요청이 작다(실제 영상은 5~8 MB).
+
+실패 시 원인 후보: 보안그룹(멈춤), `--host` 바인드 IP 오타(refused), A의 grpcio 미설치(import 오류),
+**B에서 서버를 안 띄움**(클라이언트가 `no inference server at ... after 30s`로 종료. 2026-10-01에 실제로 겪음 → B에서
+`ss -ltnp | grep 50051`로 먼저 확인), A의 `https_proxy` 환경변수(gRPC가 프록시로 나감 → `export no_grpc_proxy=172.31.20.213`).
 
 ---
 
