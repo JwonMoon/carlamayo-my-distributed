@@ -33,25 +33,30 @@
 
 ```mermaid
 flowchart LR
+    OP["운영자 PC"]
     subgraph VPC["AWS VPC (같은 서브넷)"]
+        direction LR
         subgraph A["A. sim host  g5.2xlarge  172.31.38.219"]
+            direction TB
             CARLA["CARLA 서버 (UE4)<br/>:2000 RPC / :2001 stream / :8000 TM<br/>localhost 전용"]
             CLIENT["carlamayo.py --inference-server 172.31.20.213:50051<br/>CARLAInterface + PID + respawn + pygame UI + VideoRecorder<br/>RemoteAlpamayoAdapter (torch 없음)"]
             DCV["NICE DCV 세션 (pygame 창 표시)"]
-            CARLA <-- "loopback 300~600 MB/s" --> CLIENT
+            CARLA -- "① 센서 영상<br/>(loopback 300~600 MB/s, 10 Hz)" --> CLIENT
+            CLIENT -- "④ 제어 명령 (PID: 조향·가감속)<br/>→ 다음 tick" --> CARLA
             CLIENT --> DCV
         end
         subgraph B["B. inference host  g6e.xlarge  172.31.20.213"]
+            direction TB
             SERVER["alpamayo_server.py --version 1.5<br/>gRPC :50051, 모델 1회 로드, health"]
             MODEL["Alpamayo 1.5 (bf16, ~24 GB VRAM)"]
             HF["HF 캐시 / 토큰"]
             SERVER --> MODEL
             SERVER -.-> HF
         end
-        CLIENT -- "gRPC Predict / AnswerQuestion<br/>요청 5~8 MB (JPEG), 응답 < 10 KB, ~1 Hz" --> SERVER
+        CLIENT <-- "gRPC Predict / AnswerQuestion (TCP :50051)<br/>② 요청 ⟶ JPEG 5~8 MB + 이력 + 프롬프트, ~1 Hz<br/>⟵ ③ 응답: 궤적 64점 + CoT / 답변, < 10 KB" --> SERVER
+        A -. "rsync / scp (SSH, 내부 IP)<br/>carla_data/" .-> B
     end
-    A -. "rsync / scp (SSH, 내부 IP)<br/>carla_data/" .-> B
-    OP["운영자 PC"] -. "SSH, scp(*.mp4), DCV 클라이언트" .-> A
+    OP -. "SSH, scp(*.mp4), DCV 클라이언트" .-> A
     OP -. "SSH, scp(*.mp4), Jupyter 포워딩" .-> B
 ```
 
