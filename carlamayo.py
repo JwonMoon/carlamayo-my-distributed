@@ -18,6 +18,7 @@ module with a preset loop for backward compatibility.
 
 import argparse
 
+from module import config as cfg
 from module.adapters import SUPPORTED_VERSIONS, get_adapter, normalize_version
 from module.run_dir import DEFAULT_RUNS_ROOT, RunDir
 
@@ -120,6 +121,10 @@ def build_parser(preset_loop=None):
                              "input and pause/resume (default: on).")
     parser.add_argument("--no-pygame-ui", dest="pygame_ui", action="store_false",
                         help="[closed, live-open] Run headless (video is still recorded).")
+    parser.add_argument("--pygame-size", default=None, metavar="WxH",
+                        help="[closed, live-open] Pygame window size, e.g. 1280x900 (default: "
+                             "config %dx%d; the panel and fonts scale with the width)."
+                             % (cfg.PYGAME_WINDOW_WIDTH, cfg.PYGAME_WINDOW_HEIGHT))
     parser.add_argument("--start-paused", dest="start_paused", action="store_true", default=None,
                         help="[closed] Start with the simulation paused so the first prompt can "
                              "be typed. Default: paused only in navigation/vqa mode when no "
@@ -144,6 +149,7 @@ def main(argv=None, preset_loop=None):
     args = parser.parse_args(argv)
     loop = preset_loop or args.loop
 
+    apply_pygame_size(args, parser)
     args.run_dir = None if args.no_run_dir else create_run_dir(args, loop)
     adapter = build_adapter(args, parser)
 
@@ -165,6 +171,30 @@ def main(argv=None, preset_loop=None):
     finally:
         if args.run_dir is not None:
             args.run_dir.close()
+
+
+def parse_pygame_size(text):
+    """``"960x675"`` -> ``(960, 675)``; raises ValueError on anything else."""
+    try:
+        w, h = (int(v) for v in text.lower().replace("×", "x").split("x"))
+    except Exception as exc:
+        raise ValueError(f"expected WxH, got {text!r}") from exc
+    if w < 320 or h < 240:
+        raise ValueError(f"window too small: {w}x{h} (min 320x240)")
+    return w, h
+
+
+def apply_pygame_size(args, parser=None):
+    """Apply --pygame-size to module.config before the loops create the window."""
+    if getattr(args, "pygame_size", None) is None:
+        return cfg.PYGAME_WINDOW_WIDTH, cfg.PYGAME_WINDOW_HEIGHT
+    try:
+        cfg.PYGAME_WINDOW_WIDTH, cfg.PYGAME_WINDOW_HEIGHT = parse_pygame_size(args.pygame_size)
+    except ValueError as exc:
+        if parser is not None:
+            parser.error(f"--pygame-size: {exc}")
+        raise
+    return cfg.PYGAME_WINDOW_WIDTH, cfg.PYGAME_WINDOW_HEIGHT
 
 
 def build_adapter(args, parser=None):

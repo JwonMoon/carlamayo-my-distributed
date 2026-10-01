@@ -30,13 +30,19 @@ class ClosedLoopPygameUI:
         self.mode = mode
         self.width = width
         self.height = height
-        self.panel_height = 190
+        # The layout was designed for 1280x900; everything below scales with the width.
+        self.scale = width / 1280.0
+        self.panel_height = self._px(190)
         self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption(f"{title} ({mode})")
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont("DejaVu Sans", 22)
-        self.small_font = pygame.font.SysFont("DejaVu Sans", 18)
+        self.font = pygame.font.SysFont("DejaVu Sans", max(10, self._px(22)))
+        self.small_font = pygame.font.SysFont("DejaVu Sans", max(9, self._px(18)))
         self.last_draw_ts = time.time()
+
+    def _px(self, value: float) -> int:
+        """Scale a 1280-wide layout coordinate to this window."""
+        return max(1, int(round(value * self.scale)))
 
     def close(self) -> None:
         self.pygame.quit()
@@ -139,13 +145,13 @@ class ClosedLoopPygameUI:
             f"{status} | frame {frame} | {speed:.1f} km/h | "
             f"steer {steer:.2f} | inference {inference_time:.2f}s"
         )
-        self._draw_text(status_text, 18, y0 + 14, self.font, status_color)
+        self._draw_text(status_text, self._px(18), y0 + self._px(14), self.font, status_color)
         if nav_state.mode == "navigation":
             nav_text = nav_state.navigation_text or "(no navigation text)"
             self._draw_wrapped(
                 f"Active nav: {nav_text} | weight: {nav_state.navigation_weight:.2f}",
-                18,
-                y0 + 48,
+                self._px(18),
+                y0 + self._px(48),
                 width=105,
                 color=(230, 230, 230),
             )
@@ -155,15 +161,15 @@ class ClosedLoopPygameUI:
             answer = nav_state.vqa_answer or "(answer pending after Enter/resume)"
             self._draw_wrapped(
                 f"VQA question: {question}",
-                18,
-                y0 + 48,
+                self._px(18),
+                y0 + self._px(48),
                 width=105,
                 color=(230, 230, 230),
             )
             self._draw_wrapped(
                 f"Answer: {answer}",
-                18,
-                y0 + 70,
+                self._px(18),
+                y0 + self._px(70),
                 width=105,
                 color=(190, 220, 255),
             )
@@ -171,8 +177,8 @@ class ClosedLoopPygameUI:
         elif nav_state.mode == "normal" and self.mode == "live-open":
             self._draw_wrapped(
                 "Live open-loop: CARLA autopilot drives; the model's trajectory is overlaid only.",
-                18,
-                y0 + 48,
+                self._px(18),
+                y0 + self._px(48),
                 width=105,
                 color=(230, 230, 230),
             )
@@ -180,26 +186,26 @@ class ClosedLoopPygameUI:
         else:
             self._draw_wrapped(
                 "Normal closed-loop mode: no text prompt is applied.",
-                18,
-                y0 + 48,
+                self._px(18),
+                y0 + self._px(48),
                 width=105,
                 color=(230, 230, 230),
             )
             help_text = "Ctrl+P=pause/resume, Esc=quit"
 
-        self._draw_text(help_text, 18, y0 + 88, self.small_font)
-        input_rect = (18, y0 + 116, self.width - 36, 36)
+        self._draw_text(help_text, self._px(18), y0 + self._px(88), self.small_font)
+        input_rect = (self._px(18), y0 + self._px(116), self.width - self._px(36), self._px(36))
         pygame.draw.rect(self.screen, (35, 35, 35), input_rect, border_radius=6)
         pygame.draw.rect(self.screen, (120, 120, 120), input_rect, width=1, border_radius=6)
         cursor = "_" if int(time.time() * 2) % 2 == 0 else ""
-        self._draw_text(nav_state.input_text + cursor, 28, y0 + 123, self.font, (255, 255, 255))
+        self._draw_text(nav_state.input_text + cursor, self._px(28), y0 + self._px(123), self.font, (255, 255, 255))
 
         if nav_state.last_error:
-            self._draw_text(nav_state.last_error, 18, y0 + 160, self.small_font, (255, 100, 100))
+            self._draw_text(nav_state.last_error, self._px(18), y0 + self._px(160), self.small_font, (255, 100, 100))
 
     def _draw_wrapped(self, text: str, x: int, y: int, width: int, color=(255, 255, 255)) -> None:
         for idx, line in enumerate(textwrap.wrap(text, width=width)[:2]):
-            self._draw_text(line, x, y + idx * 22, self.small_font, color)
+            self._draw_text(line, x, y + idx * self._px(22), self.small_font, color)
 
     def _draw_text(self, text: str, x: int, y: int, font, color=(255, 255, 255)) -> None:
         surface = font.render(text, True, color)

@@ -26,8 +26,8 @@ OUTPUT_VIDEO = "carla_alpamayo_closed_loop_result.mp4"
 OPEN_LOOP_OUTPUT_VIDEO = "carla_alpamayo_open_loop_result.mp4"
 LIVE_OPEN_LOOP_OUTPUT_VIDEO = "carla_alpamayo_live_open_loop_result.mp4"
 VIDEO_FPS = 10
-PYGAME_WINDOW_WIDTH = 1280
-PYGAME_WINDOW_HEIGHT = 900
+PYGAME_WINDOW_WIDTH = 960   # 3/4 of the upstream 1280x900; override with --pygame-size
+PYGAME_WINDOW_HEIGHT = 675
 
 # CARLA Configuration
 CARLA_MAP = "Town03"  # Urban-style map

@@ -189,6 +189,7 @@ cd ~/carlamayo && source venv-sim/bin/activate && export CARLA_ROOT=~/carla
 |---|---|
 | normal | `python carlamayo.py --loop closed --version 1.5 --async --inference-server 172.31.20.213:50051` |
 | normal, 창 없이 | 위 + `--no-pygame-ui` |
+| 창 크기 바꾸기 | 위 + `--pygame-size 1280x900` (기본 960x675, 패널·글꼴은 폭에 비례) |
 | navigation, 초기 지시 | 위 + `--mode navigation --navigation-text "Turn right in 30m"` (바로 주행 시작) |
 | navigation, 창에서 첫 지시 입력 | 위 + `--mode navigation` (정지 상태로 시작, 입력 후 Ctrl+P) |
 | navigation + CFG | 위 + `--mode navigation --navigation-text "Turn right in 30m" --navigation-weight 1.5` (창 입력창에는 `텍스트 \| 1.5`) |
