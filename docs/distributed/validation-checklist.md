@@ -16,7 +16,7 @@
 | ☑ | 저장소 클론 + 브랜치 | A, B | `git clone ... ~/carlamayo && git checkout claude/nice-planck-dec7fo` | 두 곳 모두 같은 커밋 (`git log -1`) |
 | ☑ | A 셋업 | A | `deploy/scripts/setup-sim-host.sh` → `source ~/.bashrc` | `ls ~/carla/CarlaUE4.sh`, `echo $CARLA_ROOT`, `source venv-sim/bin/activate && python -c "import carla, grpc, cv2, pygame"` |
 | ☑ | B 셋업 | B | `deploy/scripts/setup-inference-host.sh` | `python -c "import alpamayo1_5, grpc, cv2, bitsandbytes"` → 오류 없음 (2026-09-30 확인: `B deps OK`) |
-| ☐ | HF 로그인 | B | `hf auth login` | `hf auth whoami`에 계정 표시. 모델 게이트 승인 상태 |
+| ☑ | HF 로그인 | B | `hf auth login` | `hf auth whoami`에 계정 표시. 모델 게이트 승인 상태 |
 | ☑ | 보안그룹 | AWS 콘솔 | B에 A의 그룹 추가 또는 22·50051 규칙 추가 (관리자 요청 → 2026-10-01 반영 확인) | A에서 `nc -zv 172.31.20.213 22` → `succeeded!` |
 | ☑ | SSH A→B | A | `~/.ssh/config`에 pem 지정 후 `ssh ubuntu@172.31.20.213 hostname` | `ip-172-31-20-213` |
 
@@ -46,8 +46,8 @@
 
 | 상태 | 항목 | 어디 | 명령 | 통과 기준 |
 |---|---|---|---|---|
-| ☐ | 서버 기동 | B | `tmux new -s server` 안에서 `python alpamayo_server.py --version 1.5 --host 172.31.20.213 --port 50051` | `SERVING Alpamayo 1.5 ... cameras=4`. 첫 실행은 22 GB 다운로드 + 로드 + 워밍업으로 수 분~수십 분 |
-| ☐ | VRAM | B | `nvidia-smi` | 약 21~24 GB 사용 |
+| ☑ | 서버 기동 | B | `tmux new -s server` 안에서 `python alpamayo_server.py --version 1.5 --host 172.31.20.213 --port 50051` | `SERVING Alpamayo 1.5 ... cameras=4`. 첫 실행은 22 GB 다운로드 + 로드 + 워밍업으로 수 분~수십 분 |
+| ☑ | VRAM | B | `nvidia-smi` | 약 21~24 GB 사용 (값 기록 `[ ]`) |
 
 기록할 것: 로드 시간(로그의 `Model loaded in ...s`), 워밍업 시간, VRAM.
 
@@ -59,8 +59,8 @@
 
 | 상태 | 항목 | 어디 | 명령 | 통과 기준 |
 |---|---|---|---|---|
-| ☐ | CARLA 서버 | A | `cd ~/carla && ./CarlaUE4.sh -RenderOffScreen -quality-level=Epic` (별도 터미널/tmux) | `nvidia-smi`에 CarlaUE4 약 6 GB |
-| ☐ | 수집 | A | `python data_collect.py`, 1~2분 뒤 Ctrl+C | `carla_data/trajectory.json`과 `carla_data/camera_*/` 생성, 프레임 수 100 이상 |
+| ☑ | CARLA 서버 | A | `cd ~/carla && ./CarlaUE4.sh -RenderOffScreen -quality-level=Epic` (별도 터미널/tmux) | `nvidia-smi`에 CarlaUE4 약 6 GB |
+| ☑ | 수집 | A | `python data_collect.py`, 1~2분 뒤 Ctrl+C | `carla_data/trajectory.json`과 `carla_data/camera_*/` 생성, 프레임 수 100 이상 |
 
 기록할 것: 프레임 수(`python -c "import json; print(len(json.load(open('carla_data/trajectory.json'))))"`), 폴더 크기(`du -sh carla_data`).
 
@@ -70,9 +70,9 @@
 
 | 상태 | 항목 | 어디 | 명령 | 통과 기준 |
 |---|---|---|---|---|
-| ☐ | 원격 open-loop | A | `python carlamayo.py --loop open --version 1.5 --data-root carla_data --inference-server 172.31.20.213:50051 --run-tag remote-jpeg` | 프레임마다 `Inference: X.XXs` 출력, `runs/<run_id>/`에 mp4·`predictions.npz`·`profile_client*.csv` |
-| ☐ | 서버 프로파일 회수 | A | `tools/fetch_server_profile.sh <run_id>` | `runs/<run_id>/profile_server.csv` 생김 |
-| ☐ | 분석 | A | `python tools/analyze_run.py runs/<run_id>` | `summary.md`, `plots/*.png` 생성 |
+| ☑ | 원격 open-loop | A | `python carlamayo.py --loop open --version 1.5 --data-root carla_data --inference-server 172.31.20.213:50051 --run-tag remote-jpeg` | 프레임마다 `Inference: X.XXs` 출력, `runs/<run_id>/`에 mp4·`predictions.npz`·`profile_client*.csv` |
+| ◐ | 서버 프로파일 회수 | A | `tools/fetch_server_profile.sh <run_id>` | `runs/<run_id>/profile_server.csv` 생김 |
+| ◐ | 분석 | A | `python tools/analyze_run.py runs/<run_id>` | `summary.md`, `plots/*.png` 생성 (headline 값 기록 `[ ]`) |
 
 기록할 것: `summary.md`의 headline(`rtt_mean_s`, `inference_mean_s`, `overhead_mean_s`, `request_mb`, `upload_mbps`).
 
@@ -98,7 +98,7 @@ DCV 세션 터미널에서 실행(또는 `export DISPLAY=:0`). 처음엔 2~3분�
 
 | 상태 | 모드 | 어디 | 명령 | 통과 기준 |
 |---|---|---|---|---|
-| ☐ | normal | A | `python carlamayo.py --loop closed --version 1.5 --async --inference-server 172.31.20.213:50051 --run-tag normal` | 창이 뜨고 차량이 주행, 터미널에 `Inference done`·`Speed:` 반복, 충돌 시 리스폰 |
+| ◐ | normal (동기) | A | `python carlamayo.py --loop closed --version 1.5 --inference-server 172.31.20.213:50051 --run-tag sync` | 창이 뜨고 차량이 주행, 터미널에 `[Frame k] Inference:` 반복, 충돌 시 리스폰. 2026-10-01: 비동기(`--async`)로 먼저 돌렸더니 궤적 나이 때문에 주행이 불안정 → 동기로 재확인 중 |
 | ☐ | navigation | A | 위 + `--mode navigation --navigation-text "Turn right in 30m" --run-tag nav` | 정지 없이 시작, CoT에 지시 반영, 창에서 Enter로 지시 변경 시 즉시 적용 |
 | ☐ | navigation + CFG | A | 위 + `--navigation-weight 1.5 --run-tag cfg15` | 서버 로그에 요청 처리, 추론 시간이 비CFG보다 김(CFG 경로) |
 | ☐ | vqa | A | 위 + `--mode vqa --vqa-question "What is ahead?" --run-tag vqa` | 차량 정지, 패널·터미널에 답변 |

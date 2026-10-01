@@ -112,6 +112,9 @@ cd ~/carlamayo && source a_venv/bin/activate && python alpamayo_server.py --vers
 # Ctrl+B, D 로 빠져나오기 / 다시 보려면 tmux attach -t server
 ```
 
+서버가 떠 있는지는 B에서 `ss -ltnp | grep 50051`로 본다. 서버가 없으면 A의 클라이언트는 30초 뒤
+`no inference server at 172.31.20.213:50051 after 30s`로 끝난다.
+
 **B에서 할 일은 이것뿐이다.** 아래 §4~6의 open/closed/live-open, navigation, CFG, VQA 어느 것을
 A에서 실행하든 B의 명령은 바뀌지 않는다. 프롬프트·가중치·질문은 A가 보내는 요청에 실려 간다.
 B에서 바꿀 일이 있는 것은 모델 로딩 옵션(`--version`, `--quantization`, `--oom-free`)과
@@ -200,6 +203,14 @@ cd ~/carlamayo && source venv-sim/bin/activate && export CARLA_ROOT=~/carla
 | 요청 타임아웃 | 위 + `--rpc-timeout-sec 60` (기본 120) |
 
 UI 조작: `Enter` 프롬프트 적용, `Ctrl+P` 일시정지/재개(시뮬 세계 전체 정지), `Esc` 종료.
+
+팁:
+- 주행 품질 시연은 **동기 모드**(`--async` 없음)로. 추론 중 화면이 멈추는 것이 정상이다. 비동기는 실시간이지만
+  궤적이 왕복 시간만큼 오래된 장면 기준이라 늦게 반응한다(패널 `traj age`).
+- navigation 지시는 **지울 때까지 매 추론에 들어간다.** 회전을 마치면 입력창에 `| 1.0`(빈 지시)을 넣고 Enter로 해제한다.
+  변경이 먹었는지는 패널 `Active nav:` 줄과 터미널 `Navigation updated:`로 확인한다.
+- 영상은 `Esc`/Ctrl+C로 끝내야 저장된다(종료 때 한 번에 씀). 창을 강제로 닫으면 남지 않는다.
+- 데모 당일 순서는 [demo-runbook.md](demo-runbook.md).
 출력: `~/carlamayo/runs/<run_id>/` 안에 영상 2개(`*_result.mp4`, `*_pygame_ui.mp4`), `args.json`,
 `log.txt`, `profile_client*.csv`
 
@@ -262,6 +273,8 @@ scp -r ubuntu@<B>:~/carlamayo/runs/<run_id> ./results/     # B 로컬 open-loop
 | `agents.navigation.controller` 없음 | [A] | `export CARLA_ROOT=~/carla` |
 | "server serves Alpamayo '2' but --version '1.5'" | [A] | B의 서버 `--version`과 A의 `--version`을 맞춘다 |
 | "NUM_FRAMES: client 4 != server ..." | [A] | 두 호스트의 `module/config.py`가 다르다. 같은 커밋으로 맞춘다 |
+| `no inference server at ...:50051 after 30s` | [A] | B에서 서버가 안 떠 있거나 50051이 막힘. [B] `ss -ltnp \| grep 50051` → [A] `nc -zv 172.31.20.213 50051` |
+| `nc`는 되는데 gRPC만 실패 | [A] | `https_proxy` 환경변수 때문. `export no_grpc_proxy=172.31.20.213` 또는 `unset https_proxy http_proxy` |
 | 서버 재시작 중 클라이언트 | [A] | 오류 출력 후 다음 요청에서 자동 재접속. 궤적 나이 6 s 초과 시 정지 |
 | gRPC 스텁 오류 | 양쪽 | `tools/gen_proto.sh` 후 커밋(CI가 검사) |
 

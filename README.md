@@ -31,6 +31,7 @@
 | [docs/distributed/adr/](docs/distributed/adr/README.md) | 설계 결정 기록: 왜 이렇게 골랐고 다른 후보는 왜 아닌지 |
 | [docs/distributed/distributed-roadmap.md](docs/distributed/distributed-roadmap.md) | 분리 구현 단계별 작업 목록 |
 | [docs/distributed/cheatsheet.md](docs/distributed/cheatsheet.md) | 어느 인스턴스에서 어떤 명령을 치는지 |
+| [docs/distributed/demo-runbook.md](docs/distributed/demo-runbook.md) | 데모 당일 위에서 아래로 따라 치는 순서서: 명령·기대 출력·확인 팁·자주 겪은 오류 |
 | [docs/distributed/validation-checklist.md](docs/distributed/validation-checklist.md) | 실제 두 인스턴스에서 단계별로 검증하는 체크리스트(진행 상태·기록 포함) |
 | [docs/distributed/changes-from-upstream.md](docs/distributed/changes-from-upstream.md) | 업스트림 대비 무엇을 어디에 왜 바꿨는지 |
 | [docs/distributed/alpamayo15-notebooks-guide.md](docs/distributed/alpamayo15-notebooks-guide.md) | 공식 Alpamayo 1.5 노트북 안내와 g6e.xlarge 실행 가능성 |
